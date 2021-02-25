@@ -31,151 +31,145 @@ installedthemes=()
 outdatedthemes=()
 
 function InitLoader() {
- local retval
- shopt -s extglob    # turn on extended glob
+	local retval
+	shopt -s extglob    # turn on extended glob
 
- dialog --clear --infobox "Checking internet connection" 10 50 0 > /dev/tty1
+	dialog --clear --infobox "Checking internet connection" 10 50 0 > /dev/tty1
 
- wget -q --spider http://google.com
+	wget -q --spider http://google.com
 
- if [ $? -eq 0 ]; then
- {
-   #Load Jetup es-theme repositories
-   #jetupthemes=($(curl -s  "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
-	 IFS=$'\n' jetupthemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
-   jetupthemes=( "${jetupthemes[@]/#+([[:blank:]])/}" ) 	# remove leading space/tab from each element
-   jetupthemes=( "${jetupthemes[@]/%+([[:blank:]])/}" ) 	# remove trailing space/tab from each element
+	if [ $? -eq 0 ]; then
+	{
+  	#Load Jetup es-theme repositories
+  	#jetupthemes=($(curl -s  "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
+		IFS=$'\n' jetupthemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
+ 		jetupthemes=( "${jetupthemes[@]/#+([[:blank:]])/}" ) 	# remove leading space/tab from each element
+ 		jetupthemes=( "${jetupthemes[@]/%+([[:blank:]])/}" ) 	# remove trailing space/tab from each element
 
-   #Load already installed themes
-   installedthemes=(/roms/themes/*/)    # This creates an array of the full paths to all subdirs
-   installedthemes=("${installedthemes[@]%/}")      # This removes the trailing slash on each item
-   installedthemes=("${installedthemes[@]##*/}")    # This removes the path prefix, leaving just the dir names
+ 		#Load already installed themes
+ 		installedthemes=(/roms/themes/*/)    # This creates an array of the full paths to all subdirs
+ 		installedthemes=("${installedthemes[@]%/}")      # This removes the trailing slash on each item
+ 		installedthemes=("${installedthemes[@]##*/}")    # This removes the path prefix, leaving just the dir names
 
-   #Load installed themes with new release
-   for theme in "${jetupthemes[@]}"; do
-        if [ -d "/roms/themes/$theme" ]
-        then
-          #latest=($(curl -s "https://api.github.com/repos/Jetup13/es-theme-arkos-carbon/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
-          IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+ 		#Load installed themes with new release
+ 		for theme in "${jetupthemes[@]}"; do
+    	if [ -d "/roms/themes/$theme" ]
+			then
+    		#latest=($(curl -s "https://api.github.com/repos/Jetup13/es-theme-arkos-carbon/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+      	IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
 
-          current=$(head -n 1 ${theme}.log)
-          if [ “$current” != “$latest” ]
-          then
-             outdatedthemes+=($theme)
-          fi
-        fi
-    done
+      	current=$(head -n 1 ${theme}.log)
+      	if [ “$current” != “$latest” ]
+    		then
+      		outdatedthemes+=($theme)
+      	fi
+    	fi
+  	done
+  	} | dialog --clear --gauge "Initialization in progress..." 10 50 0 > /dev/tty1
 
-  } | dialog --clear --gauge "Initialization in progress..." 10 50 0 > /dev/tty1
+		MainMenu
 
-	MainMenu
+ 	else
+  	dialog --clear --backtitle "System" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 5 55 > /dev/tty1
 
- else
-    dialog --clear --backtitle "System" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 5 55 > /dev/tty1
-
-	   retval=$?
-	    case $retval in
-		      0)
-			       InitLoader
-			          ;;
-		      1)
-		        ExitApp ;;
-	    esac
- fi
+	  retval=$?
+	  case $retval in
+			0)
+				InitLoader ;;
+		  1)
+		  	ExitApp ;;
+	  esac
+ 	fi
 }
 
 function InstallTheme() {
-  local theme=$1
-  local REP_URL
-  local ABS_PATH
-  local ABS_DIR
-  local THEME_CONTENT
-  local temp
-  local latest
+	local theme=$1
+	local REP_URL
+	local ABS_PATH
+	local ABS_DIR
+	local THEME_CONTENT
+	local temp
+	local latest
 
-  {
-  IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+	{
+	IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
 
-  REP_URL="https://api.github.com/repos/Jetup13/${theme}/zipball"
+	REP_URL="https://api.github.com/repos/Jetup13/${theme}/zipball"
 
 	ABS_PATH=$(readlink -f "$0")
 	ABS_DIR=$(dirname "$ABS_PATH")
 
-	#sudo sh -c 'printf "\033c" > /dev/tty1'
-	#printf "\nStarting update of $theme..."
 	mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
 
-	#printf "\nDownloading archive for $theme...\n"
+	#Downloading archive
 	sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
-  } | dialog --clear --gauge "Dowloading the update..." 10 50 0 > /dev/tty1
+	} | dialog --clear --gauge "Dowloading the update..." 10 50 0 > /dev/tty1
 
-	if unzip -qt /dev/shm/theme_update_temp/update.zip | grep 'No errors detected';then
-    dialog --clear --infobox "Installing the update..." 10 50 0 > /dev/tty1
+	if unzip -qt /dev/shm/theme_update_temp/update.zip | grep 'No errors detected'
+	then
+		dialog --clear --infobox "Installing the update..." 10 50 0 > /dev/tty1
 
-		#printf "\nUnzipping archive..."
+		#Unzipping archive
 		sudo unzip -qo /dev/shm/theme_update_temp/update.zip -d /dev/shm/theme_update_temp/ #unzip directly in RAM
-
-    temp=$(find /dev/shm/theme_update_temp/ -maxdepth 1 -type d -name "Jetup13*" | sed 's/\.//g' | sed 's/\///g')
-    THEME_CONTENT=/dev/shm/theme_update_temp/$temp/*
-
-    mkdir -p /roms/themes/$theme
-		#printf "\nOverwritting existing files..."
+		#Extract the folder's name created from the archive
+  	temp=$(find /dev/shm/theme_update_temp/ -maxdepth 1 -type d -name "Jetup13*" | sed 's/\.//g' | sed 's/\///g')
+		#Init the variable
+		THEME_CONTENT=/dev/shm/theme_update_temp/$temp/*
+		#Create folder if necessary
+  	mkdir -p /roms/themes/$theme
+		#Overwritting existing files
 		cp -rf $THEME_CONTENT /roms/themes/$theme
-
-    echo $latest >> ${theme}.log
-
-    #printf "\nDeleting temporary files...\n"
-	  sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
-
-    dialog --clear --msgbox "Theme $theme updated successfully!" 10 50 0 > /dev/tty1
-    retval=$?
-  	case $retval in
-  		0)
-  		MainMenu ;;
-  		1)
-  		ExitApp ;;
-  	esac
-
-	else
-		#printf "\nTheme update have failed because the archive did not download correctly."
-		#printf "\nCheck your connection and try again.\n"
-
-    #printf "\nDeleting temporary files...\n"
+		#Create the theme's log file for version management
+  	echo $latest >> ${theme}.log
+  	#Deleting temporary files
   	sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-    dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 10 50 0 > /dev/tty1
-    retval=$?
-  	case $retval in
-  		0)
-  		UpdateMenu ;;
-  		1)
-  		ExitApp ;;
-  	esac
+  	dialog --clear --msgbox "Theme $theme updated successfully!" 10 50 0 > /dev/tty1
+  	retval=$?
+		case $retval in
+			0)
+				MainMenu ;;
+			1)
+				ExitApp ;;
+		esac
+	else
+		#Theme update have failed
+  	#Deleting temporary files
+		sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
+
+  	dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 10 50 0 > /dev/tty1
+  	retval=$?
+		case $retval in
+			0)
+				UpdateMenu ;;
+			1)
+				ExitApp ;;
+		esac
 	fi
 }
 
 function RemoveTheme() {
 	local theme="$1"
 
-  dialog --clear --infobox "Removing $theme ..." 10 50 0 > /dev/tty1
+	dialog --clear --infobox "Removing $theme ..." 10 50 0 > /dev/tty1
 
-  sudo rm -rf "/roms/themes/$theme"
-  sudo rm -f ${theme}.log
+	sudo rm -rf "/roms/themes/$theme"
+	sudo rm -f ${theme}.log
 
-  dialog --clear --msgbox "Theme $theme  successfully removed!" 10 50 0 > /dev/tty1
-  retval=$?
-  case $retval in
-    0)
-    MainMenu ;;
-    1)
-    ExitApp ;;
-  esac
+	dialog --clear --msgbox "Theme $theme  successfully removed!" 10 50 0 > /dev/tty1
+	retval=$?
+	case $retval in
+  	0)
+  		MainMenu ;;
+  	1)
+  		ExitApp ;;
+	esac
 }
 
 function UninstallMenu() {
 	local options=()
 	local themes2remove=()
-  local theme
+	local theme
 	local retval
 	local title
 	local backtitle
@@ -205,15 +199,15 @@ function UninstallMenu() {
 	retval=$?
 	case $retval in
 		0)
-		if [ "${choices[0]}" == "Other" ]
-		then
-			UninstallMenu "${choices[0]}"
-		else
-			RemoveTheme "${choices[0]}"
-		fi
+			if [ "${choices[0]}" == "Other" ]
+			then
+				UninstallMenu "${choices[0]}"
+			else
+				RemoveTheme "${choices[0]}"
+			fi
 			;;
 		1)
-		MainMenu ;;
+			MainMenu ;;
 	esac
 }
 
@@ -226,22 +220,22 @@ function UpdateMenu() {
   local theme
   local latest
 
-    # Select the theme to update
-    for theme in "${outdatedthemes[@]}"; do
-        options+=($theme "Update")
-    done
+  # Select the theme to update
+	for theme in "${outdatedthemes[@]}"; do
+		options+=($theme "Update")
+  done
 
-    cmd=(dialog --clear --backtitle "Jetup Themes" --title "[ New releases Themes ]" --menu "Select theme to update:" "15" "56" "15")
-  	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+  cmd=(dialog --clear --backtitle "Jetup Themes" --title "[ New releases Themes ]" --menu "Select theme to update:" "15" "56" "15")
+	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
-  	retval=$?
-  	case $retval in
-  		0)
-  			InstallTheme "${choices[0]}"
-  			;;
-  		1)
-  			MainMenu ;;
-  	esac
+	retval=$?
+	case $retval in
+  	0)
+  		InstallTheme "${choices[0]}"
+  		;;
+  	1)
+  		MainMenu ;;
+  esac
 }
 
 
@@ -317,7 +311,6 @@ function UpdateArkThemes() {
 }
 
 function MainMenu () {
-
 	local options=()
 	local choices=()
 	local choice
