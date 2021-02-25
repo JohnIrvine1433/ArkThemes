@@ -4,6 +4,7 @@
 #
 # https://github.com/TadMSTR/ArkThemes
 #
+# Fork focusing on Jetup themes management
 
 export TERM=linux
 sudo chmod 666 /dev/tty1 > /dev/null 2>&1
@@ -21,137 +22,261 @@ else
 sudo ./rg351_controls & > /dev/null 2>&1
 fi
 
-function InstallTheme () {
+#
+#Reused global variables
+#
 
-	for choice in $choices; do
-		case $choice in
-		es-theme-arkos-carbon) REP_URL="https://github.com/Jetup13/es-theme-arkos-carbon/archive/master.zip" ;;
-		es-theme-art-book-3-2) REP_URL="https://github.com/Jetup13/es-theme-art-book-3-2/archive/main.zip" ;;
-		es-theme-ChicueloAP) REP_URL="https://github.com/Jetup13/es-theme-ChicueloAP/archive/master.zip" ;;
-		es-theme-custom-box) REP_URL="https://github.com/Jetup13/es-theme-custom-box/archive/main.zip" ;;
-		es-theme-epicnoir) REP_URL="https://github.com/Jetup13/es-theme-epicnoir/archive/master.zip" ;;
-		es-theme-freeplay) REP_URL="https://github.com/Jetup13/es-theme-freeplay/archive/master.zip" ;;
-		es-theme-gbz35_mod) REP_URL="https://github.com/Jetup13/es-theme-gbz35_mod/archive/master.zip" ;;
-		es-theme-magical-pixel) REP_URL="https://github.com/Jetup13/es-theme-magical-pixel/archive/main.zip" ;;
-		es-theme-minimal-arkos) REP_URL="https://github.com/Jetup13/es-theme-minimal-arkos/archive/master.zip" ;;
-		es-theme-nes-box) REP_URL="https://github.com/Jetup13/es-theme-nes-box/archive/master.zip" ;;
-		es-theme-pixel) REP_URL="https://github.com/Jetup13/es-theme-pixel/archive/master.zip" ;;
-		es-theme-solo-horizontal-arkos-ed) REP_URL="https://github.com/Jetup13/es-theme-solo-horizontal-arkos-ed/archive/main.zip" ;;
-		es-theme-switch) REP_URL="https://github.com/Jetup13/es-theme-switch/archive/master.zip" ;;
-		esac
-	done
+jetupthemes=()
+installedthemes=()
+outdatedthemes=()
 
-	#extract the branch name from the provided URL
-	REP_BRANCH=$(grep -oP "[^\/]+(?=\.zip)" <<< "$REP_URL")
-	#extract the repository name from the provided URL
-	REP_NAME=$(grep -oP "[^\/]+(?=\/archive)" <<< "$REP_URL")
-	REP_DIR=$REP_NAME-$REP_BRANCH
-	ABS_PATH=$(readlink -f "$0")
-	ABS_DIR=$(dirname "$ABS_PATH")
-	THEME_CONTENT=/dev/shm/theme_update_temp/$REP_DIR/*
+function InitLoader() {
+ local retval
+ shopt -s extglob    # turn on extended glob
 
-	sudo sh -c 'printf "\033c" > /dev/tty1'
-	printf "\nStarting update of $REP_NAME..."
-	mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
+ dialog --clear --infobox "Checking internet connection" 10 50 0 > /dev/tty1
 
-	printf "\nDownloading archive for the $REP_BRANCH branch...\n"
-	sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
-	if unzip -qt /dev/shm/theme_update_temp/update.zip | grep 'No errors detected';then
-		printf "\nUnzipping archive..."
-		sudo unzip -qo /dev/shm/theme_update_temp/update.zip -d /dev/shm/theme_update_temp/ #unzip directly in RAM
-		mkdir -p /roms/themes/$REP_NAME
-		printf "\nOverwritting existing files..."
-		cp -rf $THEME_CONTENT /roms/themes/$REP_NAME
-		printf "\nTheme $REP_NAME updated successfully."
-		sleep 3
-	else
-		printf "\nTheme update have failed because the archive did not download correctly."
-		printf "\nCheck your connection and try again.\n"
-		sleep 6
-	fi
-	printf "\nDeleting temporary files...\n"
-	sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
+ wget -q --spider http://google.com
 
-	sleep 3
+ if [ $? -eq 0 ]; then
+ {
+   #Load Jetup es-theme repositories
+   #jetupthemes=($(curl -s  "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
+	 IFS=$'\n' jetupthemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
+   jetupthemes=( "${jetupthemes[@]/#+([[:blank:]])/}" ) 	# remove leading space/tab from each element
+   jetupthemes=( "${jetupthemes[@]/%+([[:blank:]])/}" ) 	# remove trailing space/tab from each element
+
+   #Load already installed themes
+   installedthemes=(/roms/themes/*/)    # This creates an array of the full paths to all subdirs
+   installedthemes=("${installedthemes[@]%/}")      # This removes the trailing slash on each item
+   installedthemes=("${installedthemes[@]##*/}")    # This removes the path prefix, leaving just the dir names
+
+   #Load installed themes with new release
+   for theme in "${jetupthemes[@]}"; do
+        if [ -d "/roms/themes/$theme" ]
+        then
+          #latest=($(curl -s "https://api.github.com/repos/Jetup13/es-theme-arkos-carbon/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+          IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+
+          current=$(head -n 1 ${theme}.log)
+          if [ “$current” != “$latest” ]
+          then
+             outdatedthemes+=($theme)
+          fi
+        fi
+    done
+
+  } | dialog --clear --gauge "Initialization in progress..." 10 50 0 > /dev/tty1
 
 	MainMenu
+
+ else
+    dialog --clear --backtitle "System" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 5 55 > /dev/tty1
+
+	   retval=$?
+	    case $retval in
+		      0)
+			       InitLoader
+			          ;;
+		      1)
+		        ExitApp ;;
+	    esac
+ fi
 }
 
-function RemoveTheme () {
+function InstallTheme() {
+  local theme=$1
+  local REP_URL
+  local ABS_PATH
+  local ABS_DIR
+  local THEME_CONTENT
+  local temp
+  local latest
+
+  {
+  IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+
+  REP_URL="https://api.github.com/repos/Jetup13/${theme}/zipball"
+
+	ABS_PATH=$(readlink -f "$0")
+	ABS_DIR=$(dirname "$ABS_PATH")
+
+	#sudo sh -c 'printf "\033c" > /dev/tty1'
+	#printf "\nStarting update of $theme..."
+	mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
+
+	#printf "\nDownloading archive for $theme...\n"
+	sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
+  } | dialog --clear --gauge "Dowloading the update..." 10 50 0 > /dev/tty1
+
+	if unzip -qt /dev/shm/theme_update_temp/update.zip | grep 'No errors detected';then
+    dialog --clear --infobox "Installing the update..." 10 50 0 > /dev/tty1
+
+		#printf "\nUnzipping archive..."
+		sudo unzip -qo /dev/shm/theme_update_temp/update.zip -d /dev/shm/theme_update_temp/ #unzip directly in RAM
+
+    temp=$(find /dev/shm/theme_update_temp/ -maxdepth 1 -type d -name "Jetup13*" | sed 's/\.//g' | sed 's/\///g')
+    THEME_CONTENT=/dev/shm/theme_update_temp/$temp/*
+
+    mkdir -p /roms/themes/$theme
+		#printf "\nOverwritting existing files..."
+		cp -rf $THEME_CONTENT /roms/themes/$theme
+
+    echo $latest >> ${theme}.log
+
+    #printf "\nDeleting temporary files...\n"
+	  sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
+
+    dialog --clear --msgbox "Theme $theme updated successfully!" 10 50 0 > /dev/tty1
+    retval=$?
+  	case $retval in
+  		0)
+  		MainMenu ;;
+  		1)
+  		ExitApp ;;
+  	esac
+
+	else
+		#printf "\nTheme update have failed because the archive did not download correctly."
+		#printf "\nCheck your connection and try again.\n"
+
+    #printf "\nDeleting temporary files...\n"
+  	sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
+
+    dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 10 50 0 > /dev/tty1
+    retval=$?
+  	case $retval in
+  		0)
+  		UpdateMenu ;;
+  		1)
+  		ExitApp ;;
+  	esac
+	fi
+}
+
+function RemoveTheme() {
 	local theme="$1"
 
-	sudo sh -c 'printf "\033c" > /dev/tty1'
-	printf "\nRemoving $theme ..."
-    	sudo rm -rf "/roms/themes/$theme"
-	printf "\n$theme removed !"
+  dialog --clear --infobox "Removing $theme ..." 10 50 0 > /dev/tty1
 
-	sleep 3
+  sudo rm -rf "/roms/themes/$theme"
+  sudo rm -f ${theme}.log
 
-	MainMenu
+  dialog --clear --msgbox "Theme $theme  successfully removed!" 10 50 0 > /dev/tty1
+  retval=$?
+  case $retval in
+    0)
+    MainMenu ;;
+    1)
+    ExitApp ;;
+  esac
 }
 
 function UninstallMenu() {
-
-	theme=(/roms/themes/*/)    # This creates an array of the full paths to all subdirs
-	theme=("${theme[@]%/}")      # This removes the trailing slash on each item
-	theme=("${theme[@]##*/}")    # This removes the path prefix, leaving just the dir names
-
 	local options=()
+	local themes2remove=()
+  local theme
+	local retval
+	local title
+	local backtitle
 
-	for theme in "${theme[@]}"; do
-                options+=($theme "Uninstall")
-        done
+	if [[ -z "$1" ]]
+	then
+ 		# Uninstall Jetup themes
+		themes2remove=($(comm -12 <(printf '%s\n' "${jetupthemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
+		for theme in "${themes2remove[@]}"; do
+    	options+=($theme "Uninstall")
+    done
+		options+=(Other "Uninstall a system's theme")
+		title="[ Remove Jetup Themes ]"
+	else
+		# Uninstall non Jetup themes
+		themes2remove=($(comm -13 <(printf '%s\n' "${jetupthemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
+		for theme in "${themes2remove[@]}"; do
+			options+=($theme "Uninstall")
+		done
+		title="\Zb\Z1[ Caution - These themes cannot be reinstalled ]"
+	fi
 
-  cmd=(dialog --clear --backtitle "ArkThemes" --title "[ Remove Themes ]" --menu "Select theme from the list:" "15" "56" "15")
-  choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+  cmd=(dialog --colors --clear --backtitle "Themes removal" --title "$title" --menu "Select theme from the list:" "15" "56" "15")
 
-	retval=$?
-	case $retval in
-		0) RemoveTheme "${choices[0]}" ;;
-		1) MainMenu ;;
-	esac
-}
-
-function InstallMenu() {
-
-	local options=()
-
-	local themes=(
-	'es-theme-arkos-carbon'
-	'es-theme-art-book-3-2'
-	'es-theme-ChicueloAP'
-	'es-theme-custom-box'
-	'es-theme-epicnoir'
-	'es-theme-freeplay'
-	'es-theme-gbz35_mod'
-	'es-theme-magical-pixel'
-	'es-theme-minimal-arkos'
-	'es-theme-nes-box'
-	'es-theme-pixel'
-	'es-theme-solo-horizontal-arkos-ed'
-	'es-theme-switch'
-	)
-
-	for theme in "${themes[@]}"; do
-  	if [ -d "/roms/themes/$theme" ]
-		then
-    	options+=($theme "Update")
-  	else
-  		options+=($theme "Install")
-  	fi
-  done
-
-	cmd=(dialog --clear --backtitle "ArkThemes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "56" "15")
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
 	retval=$?
 	case $retval in
-		0) InstallTheme "${choices[0]}" ;;
-		1) MainMenu ;;
+		0)
+		if [ "${choices[0]}" == "Other" ]
+		then
+			UninstallMenu "${choices[0]}"
+		else
+			RemoveTheme "${choices[0]}"
+		fi
+			;;
+		1)
+		MainMenu ;;
 	esac
 }
 
-function ExitMenu() {
+function UpdateMenu() {
+	local options=()
+	local choices=()
+	local cmd=()
+	local retval
+	local selection
+  local theme
+  local latest
+
+    # Select the theme to update
+    for theme in "${outdatedthemes[@]}"; do
+        options+=($theme "Update")
+    done
+
+    cmd=(dialog --clear --backtitle "Jetup Themes" --title "[ New releases Themes ]" --menu "Select theme to update:" "15" "56" "15")
+  	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+
+  	retval=$?
+  	case $retval in
+  		0)
+  			InstallTheme "${choices[0]}"
+  			;;
+  		1)
+  			MainMenu ;;
+  	esac
+}
+
+
+function InstallMenu() {
+	local options=()
+	local choices=()
+	local cmd=()
+	local retval
+	local selection
+  local theme
+
+  # Select the theme to install
+  for theme in "${jetupthemes[@]}"; do
+        if [ -d "/roms/themes/$theme" ]
+        then
+          options+=($theme "Reinstall")
+        else
+          options+=($theme "Install")
+        fi
+  done
+
+    cmd=(dialog --clear --backtitle "Jetup Themes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "56" "15")
+  	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+
+  	retval=$?
+  	case $retval in
+  		0)
+  			InstallTheme "${choices[0]}"
+  			;;
+  		1)
+  			MainMenu ;;
+  	esac
+}
+
+function ExitApp() {
 	pgrep -f oga_controls | sudo xargs kill -9 > /dev/null 2>&1
 	pgrep -f rg351_controls | sudo xargs kill -9 > /dev/null 2>&1
 	sudo systemctl restart emulationstation
@@ -193,34 +318,39 @@ function UpdateArkThemes() {
 
 function MainMenu () {
 
-	while true; do
-		cmd=(dialog --clear --backtitle "ArkThemes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "10" "60" "10")
+	local options=()
+	local choices=()
+	local choice
+	local retval
 
-		options=(
-			A "Install or update a theme"
-			B "Uninstall a theme"
-			C "Update ArkThemes"
-			D "Exit to emulationstation"
-			)
+	cmd=(dialog --clear --no-cancel --backtitle "Jetup Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "10" "60" "10")
 
-		choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+	options=(
+		A "Install a new theme"
+		B "Update a theme"
+		C "Uninstall a theme"
+		D "Update ArkThemes"
+		E "Exit to emulationstation"
+	)
 
-		retval=$?
-		case $retval in
-			0)
-				for choice in $choices; do
-					case $choice in
-						A) InstallMenu ;;
-						B) UninstallMenu ;;
-						C) UpdateArkThemes ;;
-						D) ExitMenu ;;
-					esac
-				done
-				;;
-			1)
-				ExitMenu ;;
-		esac
-	done
+	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+
+	retval=$?
+	case $retval in
+		0)
+			for choice in $choices; do
+				case $choice in
+					A) InstallMenu ;;
+					B) UpdateMenu ;;
+					C) UninstallMenu ;;
+					D) UpdateArkThemes ;;
+					E) ExitApp ;;
+				esac
+			done
+			;;
+		1)
+			ExitApp ;;
+	esac
 }
 
-MainMenu
+InitLoader
