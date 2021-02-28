@@ -44,8 +44,8 @@ function InitLoader() {
 	wget -q --spider http://google.com
 
 	if [ $? -eq 0 ]; then
-  	#Load online es-theme repositories
-  	IFS=$'\n' onlinethemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/${github_user}/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
+		#Load online es-theme repositories
+		IFS=$'\n' onlinethemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/${github_user}/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
  		onlinethemes=( "${onlinethemes[@]/#+([[:blank:]])/}" ) 	# remove leading space/tab from each element
  		onlinethemes=( "${onlinethemes[@]/%+([[:blank:]])/}" ) 	# remove trailing space/tab from each element
 
@@ -56,17 +56,17 @@ function InitLoader() {
 
  		#Load installed themes with new release
  		for theme in "${onlinethemes[@]}"; do
-    	if [ -d "/roms/themes/$theme" ]
+			if [ -d "/roms/themes/$theme" ]
 			then
-    		latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+				latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
 
-      	current=$(head -n 1 ${theme}.log)
-      	if [ “$current” != “$latest” ]
-    		then
-      		outdatedthemes+=($theme)
-      	fi
-    	fi
-  	done
+				current=$(head -n 1 ${theme}.log)
+				if [ “$current” != “$latest” ]
+				then
+					outdatedthemes+=($theme)
+				fi
+			fi
+		done
 
 		MainMenu
 
@@ -76,9 +76,9 @@ function InitLoader() {
 	  retval=$?
 	  case $retval in
 			0)
-				InitLoader ;;
-		  1)
-		  	ExitApp ;;
+			InitLoader ;;
+			1)
+			ExitApp ;;
 	  esac
  	fi
 }
@@ -117,32 +117,32 @@ function InstallTheme() {
 		#Unzipping archive
 		sudo unzip -qo /dev/shm/theme_update_temp/update.zip -d /dev/shm/theme_update_temp/ #unzip directly in RAM
 		#Extract the folder's name created from the archive
-  	#temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*" | sed 's/\/dev\/shm\/theme_update_temp\///g')
+		#temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*" | sed 's/\/dev\/shm\/theme_update_temp\///g')
 		temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*")
 		temp="${temp##*/}"
 		#Init the variable
 		THEME_CONTENT=/dev/shm/theme_update_temp/$temp/*
 		#Create folder if necessary
-  	mkdir -p /roms/themes/$theme
+		mkdir -p /roms/themes/$theme
 		#Overwritting existing files
 		cp -rf $THEME_CONTENT /roms/themes/$theme
 		#Create the theme's log file for version management
-  	echo $latest >> ${theme}.log
-  	#Deleting temporary files
-  	sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
+		echo $latest >> ${theme}.log
+		#Deleting temporary files
+		sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-  	dialog --clear --infobox "Theme $theme updated successfully!" 0 0
+		dialog --clear --infobox "Theme $theme updated successfully!" 0 0
 
 		sleep 3
 
-  	MainMenu
+		MainMenu
 
 	else
 		#Theme update have failed
-  	#Deleting temporary files
+		#Deleting temporary files
 		sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-  	cmd=$(dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 > /dev/tty1)
+		cmd=$(dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 > /dev/tty1)
   	retval=$?
 		case $retval in
 			0)
@@ -162,10 +162,8 @@ function RemoveTheme() {
 	sudo rm -f ${theme}.log
 
 	dialog --clear --infobox "Theme $theme successfully removed!" 0 0
-
 	sleep 3
-
-  MainMenu
+	MainMenu
 }
 
 function UninstallMenu() {
@@ -181,8 +179,8 @@ function UninstallMenu() {
  		# Uninstall managed themes
 		themes2remove=($(comm -12 <(printf '%s\n' "${onlinethemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
 		for theme in "${themes2remove[@]}"; do
-    	options+=($theme "Uninstall")
-    done
+			options+=($theme "Uninstall")
+		done
 		options+=(Other "Uninstall a system's theme")
 		title="[ Remove ${collection_name} Themes ]"
 	else
@@ -194,7 +192,7 @@ function UninstallMenu() {
 		title="\Zb\Z1[ Caution - These themes cannot be reinstalled ]"
 	fi
 
-  cmd=(dialog --colors --clear --backtitle "Themes removal" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
+	cmd=(dialog --colors --clear --backtitle "Themes removal" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
 
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
@@ -219,15 +217,15 @@ function UpdateMenu() {
 	local cmd=()
 	local retval
 	local selection
-  local theme
-  local latest
+	local theme
+	local latest
 
   # Select the theme to update
 	for theme in "${outdatedthemes[@]}"; do
 		options+=($theme "Update")
   done
 
-  cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
+	cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
 	retval=$?
@@ -247,7 +245,7 @@ function InstallMenu() {
 	local cmd=()
 	local retval
 	local selection
-  local theme
+	local theme
 
   # Select the theme to install
   for theme in "${onlinethemes[@]}"; do
@@ -259,17 +257,17 @@ function InstallMenu() {
         fi
   done
 
-    cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "50" "15")
-  	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+	cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "50" "15")
+	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
-  	retval=$?
-  	case $retval in
-  		0)
-  			InstallTheme "${choices[0]}"
-  			;;
-  		1)
-  			MainMenu ;;
-  	esac
+	retval=$?
+	case $retval in
+		0)
+		InstallTheme "${choices[0]}"
+		;;
+		1)
+		MainMenu ;;
+	esac
 }
 
 function ExitApp() {
