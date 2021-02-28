@@ -4,7 +4,6 @@
 #
 # https://github.com/TadMSTR/ArkThemes
 #
-# Fork focusing on Jetup themes management
 
 export TERM=linux
 sudo chmod 666 /dev/tty1 > /dev/null 2>&1
@@ -23,10 +22,16 @@ sudo ./rg351_controls & > /dev/null 2>&1
 fi
 
 #
-#Reused global variables
+# Configuration variables
+# Themes need to be stored on github and repositories starting with es-theme
 #
+github_user="Jetup13" #github user's name, alternative example "EmuELEC"
+collection_name="Jetup" #Name that will be displayed
 
-jetupthemes=()
+#
+# Reused global variables
+#
+onlinethemes=()
 installedthemes=()
 outdatedthemes=()
 
@@ -34,17 +39,15 @@ function InitLoader() {
 	local retval
 	shopt -s extglob    # turn on extended glob
 
-	dialog --clear --infobox "Checking internet connection" 10 50 0 > /dev/tty1
+	dialog --infobox "Initialization..." 0 0
 
 	wget -q --spider http://google.com
 
 	if [ $? -eq 0 ]; then
-	{
-  	#Load Jetup es-theme repositories
-  	#jetupthemes=($(curl -s  "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
-		IFS=$'\n' jetupthemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/Jetup13/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
- 		jetupthemes=( "${jetupthemes[@]/#+([[:blank:]])/}" ) 	# remove leading space/tab from each element
- 		jetupthemes=( "${jetupthemes[@]/%+([[:blank:]])/}" ) 	# remove trailing space/tab from each element
+  	#Load online es-theme repositories
+  	IFS=$'\n' onlinethemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/${github_user}/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
+ 		onlinethemes=( "${onlinethemes[@]/#+([[:blank:]])/}" ) 	# remove leading space/tab from each element
+ 		onlinethemes=( "${onlinethemes[@]/%+([[:blank:]])/}" ) 	# remove trailing space/tab from each element
 
  		#Load already installed themes
  		installedthemes=(/roms/themes/*/)    # This creates an array of the full paths to all subdirs
@@ -52,11 +55,10 @@ function InitLoader() {
  		installedthemes=("${installedthemes[@]##*/}")    # This removes the path prefix, leaving just the dir names
 
  		#Load installed themes with new release
- 		for theme in "${jetupthemes[@]}"; do
+ 		for theme in "${onlinethemes[@]}"; do
     	if [ -d "/roms/themes/$theme" ]
 			then
-    		#latest=($(curl -s "https://api.github.com/repos/Jetup13/es-theme-arkos-carbon/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
-      	IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+    		latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
 
       	current=$(head -n 1 ${theme}.log)
       	if [ “$current” != “$latest” ]
@@ -65,12 +67,11 @@ function InitLoader() {
       	fi
     	fi
   	done
-  	} | dialog --clear --gauge "Initialization in progress..." 10 50 0 > /dev/tty1
 
 		MainMenu
 
  	else
-  	dialog --clear --backtitle "System" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 5 55 > /dev/tty1
+  	cmd=$(dialog --clear --backtitle "System" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 > /dev/tty1)
 
 	  retval=$?
 	  case $retval in
@@ -91,10 +92,9 @@ function InstallTheme() {
 	local temp
 	local latest
 
-	{
-	IFS=$'\n' latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
+	latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ //'))
 
-	REP_URL="https://api.github.com/repos/Jetup13/${theme}/zipball"
+	REP_URL="https://api.github.com/repos/${github_user}/${theme}/zipball"
 
 	ABS_PATH=$(readlink -f "$0")
 	ABS_DIR=$(dirname "$ABS_PATH")
@@ -102,17 +102,24 @@ function InstallTheme() {
 	mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
 
 	#Downloading archive
-	sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
-	} | dialog --clear --gauge "Dowloading the update..." 10 50 0 > /dev/tty1
+	#sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
+	sudo wget -O /dev/shm/theme_update_temp/update.zip -c -e robots=off -np --progress=dot "$REP_URL" 2>&1 \
+      | stdbuf -oL sed -e 's\nothing to do\100%\g' \
+      | stdbuf -oL grep --line-buffered "%" \
+      | stdbuf -oL cut -f1 -d'%' | stdbuf -oL rev \
+      | stdbuf -oL cut -f1 -d' ' | stdbuf -oL rev \
+      | dialog --guage "Downloading: ${theme}" 0 100
 
 	if unzip -qt /dev/shm/theme_update_temp/update.zip | grep 'No errors detected'
 	then
-		dialog --clear --infobox "Installing the update..." 10 50 0 > /dev/tty1
+		dialog --clear --infobox "Installing the update..." 0 0
 
 		#Unzipping archive
 		sudo unzip -qo /dev/shm/theme_update_temp/update.zip -d /dev/shm/theme_update_temp/ #unzip directly in RAM
 		#Extract the folder's name created from the archive
-  	temp=$(find /dev/shm/theme_update_temp/ -maxdepth 1 -type d -name "Jetup13*" | sed 's/\.//g' | sed 's/\///g')
+  	#temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*" | sed 's/\/dev\/shm\/theme_update_temp\///g')
+		temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*")
+		temp="${temp##*/}"
 		#Init the variable
 		THEME_CONTENT=/dev/shm/theme_update_temp/$temp/*
 		#Create folder if necessary
@@ -124,20 +131,18 @@ function InstallTheme() {
   	#Deleting temporary files
   	sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-  	dialog --clear --msgbox "Theme $theme updated successfully!" 10 50 0 > /dev/tty1
-  	retval=$?
-		case $retval in
-			0)
-				MainMenu ;;
-			1)
-				ExitApp ;;
-		esac
+  	dialog --clear --infobox "Theme $theme updated successfully!" 0 0
+
+		sleep 3
+
+  	MainMenu
+
 	else
 		#Theme update have failed
   	#Deleting temporary files
 		sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-  	dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 10 50 0 > /dev/tty1
+  	cmd=$(dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 > /dev/tty1)
   	retval=$?
 		case $retval in
 			0)
@@ -151,19 +156,16 @@ function InstallTheme() {
 function RemoveTheme() {
 	local theme="$1"
 
-	dialog --clear --infobox "Removing $theme ..." 10 50 0 > /dev/tty1
+	dialog --clear --infobox "Removing $theme ..." 0 0
 
 	sudo rm -rf "/roms/themes/$theme"
 	sudo rm -f ${theme}.log
 
-	dialog --clear --msgbox "Theme $theme  successfully removed!" 10 50 0 > /dev/tty1
-	retval=$?
-	case $retval in
-  	0)
-  		MainMenu ;;
-  	1)
-  		ExitApp ;;
-	esac
+	dialog --clear --infobox "Theme $theme successfully removed!" 0 0
+
+	sleep 3
+
+  MainMenu
 }
 
 function UninstallMenu() {
@@ -176,23 +178,23 @@ function UninstallMenu() {
 
 	if [[ -z "$1" ]]
 	then
- 		# Uninstall Jetup themes
-		themes2remove=($(comm -12 <(printf '%s\n' "${jetupthemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
+ 		# Uninstall managed themes
+		themes2remove=($(comm -12 <(printf '%s\n' "${onlinethemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
 		for theme in "${themes2remove[@]}"; do
     	options+=($theme "Uninstall")
     done
 		options+=(Other "Uninstall a system's theme")
-		title="[ Remove Jetup Themes ]"
+		title="[ Remove ${collection_name} Themes ]"
 	else
-		# Uninstall non Jetup themes
-		themes2remove=($(comm -13 <(printf '%s\n' "${jetupthemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
+		# Uninstall non managed themes
+		themes2remove=($(comm -13 <(printf '%s\n' "${onlinethemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
 		for theme in "${themes2remove[@]}"; do
 			options+=($theme "Uninstall")
 		done
 		title="\Zb\Z1[ Caution - These themes cannot be reinstalled ]"
 	fi
 
-  cmd=(dialog --colors --clear --backtitle "Themes removal" --title "$title" --menu "Select theme from the list:" "15" "56" "15")
+  cmd=(dialog --colors --clear --backtitle "Themes removal" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
 
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
@@ -225,7 +227,7 @@ function UpdateMenu() {
 		options+=($theme "Update")
   done
 
-  cmd=(dialog --clear --backtitle "Jetup Themes" --title "[ New releases Themes ]" --menu "Select theme to update:" "15" "56" "15")
+  cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
 	retval=$?
@@ -248,7 +250,7 @@ function InstallMenu() {
   local theme
 
   # Select the theme to install
-  for theme in "${jetupthemes[@]}"; do
+  for theme in "${onlinethemes[@]}"; do
         if [ -d "/roms/themes/$theme" ]
         then
           options+=($theme "Reinstall")
@@ -257,7 +259,7 @@ function InstallMenu() {
         fi
   done
 
-    cmd=(dialog --clear --backtitle "Jetup Themes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "56" "15")
+    cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "50" "15")
   	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
   	retval=$?
@@ -304,7 +306,7 @@ function UpdateArkThemes() {
 	printf "\nDeleting temporary files...\n"
 	sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
 
-	dialog --backtitle "System" --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 55 > /dev/tty1
+	dialog --backtitle "System" --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50 > /dev/tty1
 	sleep 3
 
 	ExitMenu
@@ -316,7 +318,7 @@ function MainMenu () {
 	local choice
 	local retval
 
-	cmd=(dialog --clear --no-cancel --backtitle "Jetup Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "10" "60" "10")
+	cmd=(dialog --clear --no-cancel --backtitle "${collection_name} Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" 15)
 
 	options=(
 		A "Install a new theme"
