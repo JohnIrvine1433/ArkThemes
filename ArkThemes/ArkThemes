@@ -213,18 +213,22 @@ function UninstallMenu() {
 	esac
 }
 
+function UpdateSubMenu {
+#To be done - display update infos
+commitmsg=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\"//'))
+
+}
+
 function UpdateMenu() {
 	local options=()
 	local choices=()
 	local cmd=()
 	local retval
-	local selection
 	local theme
-	local latest
 
   # Select the theme to update
 	for theme in "${outdatedthemes[@]}"; do
-		options+=($theme "Update")
+      options+=($theme "Update")
   done
 
 	if [[ -n "${options[@]}" ]]
