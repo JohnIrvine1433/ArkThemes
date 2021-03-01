@@ -227,17 +227,24 @@ function UpdateMenu() {
 		options+=($theme "Update")
   done
 
-	cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
-	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+	if [[ -n "${options[@]}" ]]
+	then
+	   cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
+	   choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
-	retval=$?
-	case $retval in
-  	0)
-  		InstallTheme "${choices[0]}"
-  		;;
-  	1)
-  		MainMenu ;;
-  esac
+	   retval=$?
+	   case $retval in
+  	   0)
+  		   InstallTheme "${choices[0]}"
+  		   ;;
+  	   1)
+  		   MainMenu ;;
+      esac
+   else
+     dialog --clear --infobox "No update available!" 0 0
+	  sleep 3
+	  MainMenu
+   fi
 }
 
 
