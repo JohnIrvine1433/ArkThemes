@@ -59,7 +59,8 @@ function InitLoader() {
 			if [ -d "/roms/themes/$theme" ]
 			then
 				latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
-				current=$(cat "${theme}.log") #current=$(head -n 1 ${theme}.log)
+				current=$(cat "${theme}.log") 
+            #current=$(head -n 1 ${theme}.log) #Alternative when every version installed is kept - see file creation
 
 				if [ “$current” != “$latest” ]
 				then
@@ -128,6 +129,7 @@ function InstallTheme() {
 		cp -rf $THEME_CONTENT /roms/themes/$theme
 		#Create the theme's log file for version management
 		echo $latest > ${theme}.log
+      #echo $latest >> ${theme}.log #alternative to keep every version installed, reading also need to be modified
 		#Deleting temporary files
 		sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
