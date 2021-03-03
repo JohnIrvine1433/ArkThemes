@@ -59,7 +59,7 @@ function InitLoader() {
 			if [ -d "/roms/themes/$theme" ]
 			then
 				latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
-				current=$(cat "${theme}.log") 
+				current=$(cat "${theme}.log")
             #current=$(head -n 1 ${theme}.log) #Alternative when every version installed is kept - see file creation
 
 				if [ “$current” != “$latest” ]
@@ -214,9 +214,22 @@ function UninstallMenu() {
 }
 
 function UpdateSubMenu {
-#To be done - display update infos
-commitmsg=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\"//'))
+	local theme="$1"
+	local description
+	local commitmsg
 
+	description=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}" | sed '/\"description\":/!d;q' | sed -e 's/\"description\": \"//' | sed -e 's/\"//'))
+	commitmsg=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\"//'))
+
+	cmd=$(dialog --clear --backtitle "${theme}" --yes-label "Update" --cancel-label "Back" --yesno "Theme description :\n${description}\nUpdate infos :\n${commitmsg}" 0 0 2>&1 > /dev/tty1)
+
+	retval=$?
+	case $retval in
+		0)
+		InstallTheme "$theme" ;;
+		1)
+		UpdateMenu ;;
+	esac
 }
 
 function UpdateMenu() {
@@ -231,26 +244,37 @@ function UpdateMenu() {
       options+=($theme "Update")
   done
 
-	if [[ -n "${options[@]}" ]]
-	then
-	   cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
-	   choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
+	cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
+	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
-	   retval=$?
-	   case $retval in
-  	   0)
-  		   InstallTheme "${choices[0]}"
-  		   ;;
-  	   1)
-  		   MainMenu ;;
-      esac
-   else
-     dialog --clear --infobox "No update available!" 0 0
-	  sleep 3
-	  MainMenu
-   fi
+	retval=$?
+	case $retval in
+		0)
+		InstallTheme "${choices[0]}"
+		;;
+		1)
+		MainMenu ;;
+		2)
+		UpdateSubMenu "$theme" ;;
+	esac
 }
 
+function InstallSubMenu {
+	local theme="$1"
+	local description
+
+	description=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}" | sed '/\"description\":/!d;q' | sed -e 's/\"description\": \"//' | sed -e 's/\"//'))
+
+	cmd=$(dialog --clear --backtitle "${theme}" --yes-label "Install" --cancel-label "Back" --yesno "Theme description :\n${description}" 0 0 2>&1 > /dev/tty1)
+
+	retval=$?
+	case $retval in
+		0)
+		InstallTheme "$theme" ;;
+		1)
+		InstallMenu ;;
+	esac
+}
 
 function InstallMenu() {
 	local options=()
@@ -270,7 +294,7 @@ function InstallMenu() {
         fi
   done
 
-	cmd=(dialog --clear --backtitle "${collection_name} Themes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "50" "15")
+	cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${collection_name} Themes" --title "[ Install Themes ]" --menu "Select theme from the list:" "15" "50" "15")
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
 	retval=$?
@@ -280,6 +304,8 @@ function InstallMenu() {
 		;;
 		1)
 		MainMenu ;;
+		2)
+		InstallSubMenu "$theme" ;;
 	esac
 }
 
@@ -331,13 +357,23 @@ function MainMenu () {
 
 	cmd=(dialog --clear --no-cancel --backtitle "${collection_name} Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" 15)
 
-	options=(
-		A "Install a new theme"
-		B "Update a theme"
-		C "Uninstall a theme"
-		D "Update ArkThemes"
-		E "Exit to emulationstation"
-	)
+	if [[ -n "${outdatedthemes[@]}" ]]
+	then
+		options=(
+			0 "Update(s) available!"
+			1 "Install a new theme"
+			2 "Uninstall a theme"
+			3 "Update ArkThemes"
+			4 "Exit to emulationstation"
+			)
+	else
+		options=(
+			1 "Install a new theme"
+			2 "Uninstall a theme"
+			3 "Update ArkThemes"
+			4 "Exit to emulationstation"
+			)
+	fi
 
 	choices=$("${cmd[@]}" "${options[@]}" 2>&1 > /dev/tty1)
 
@@ -346,11 +382,11 @@ function MainMenu () {
 		0)
 			for choice in $choices; do
 				case $choice in
-					A) InstallMenu ;;
-					B) UpdateMenu ;;
-					C) UninstallMenu ;;
-					D) UpdateArkThemes ;;
-					E) ExitApp ;;
+					0) UpdateMenu ;;
+					1) InstallMenu ;;
+					2) UninstallMenu ;;
+					3) UpdateArkThemes ;;
+					4) ExitApp ;;
 				esac
 			done
 			;;
