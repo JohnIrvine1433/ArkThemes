@@ -41,7 +41,7 @@ function GetChangeLog {
 
 		changelog=()
 
-		changelog=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/es-theme-switch/commits" | grep '"message": \|"date": ' | sed -e 's/\"message\": \"//' | sed -e 's/\"date\": \"//'))
+		changelog=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | grep '"message": \|"date": ' | sed -e 's/\"message\": \"//' | sed -e 's/\"date\": \"//'))
 		changelog=("${changelog[@]%,}")
 		changelog=("${changelog[@]%\"}")
     #To do : filter date duplicates
@@ -262,7 +262,7 @@ function UpdateMenu() {
   local choices
   local retval
 
-  # Select the theme to update
+  # Select themes to update
   for theme in "${outdatedthemes[@]}"; do
     options+=($theme "Update")
   done
@@ -403,7 +403,7 @@ function MainMenu() {
 
   cmd=(dialog --clear --no-cancel --backtitle "${collection_name} Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" 15)
 
-  if [[ -n "${outdatedthemes[@]}" ]]; then
+  if [[ -n "${outdatedthemes[*]}" ]]; then
     options=(
       0 "Update(s) available!"
       1 "Install a theme"
