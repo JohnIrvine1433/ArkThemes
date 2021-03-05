@@ -76,7 +76,8 @@ function InitLoader() {
       if [ -d "/roms/themes/$theme" ]; then
 				#latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/es-theme-switch/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
         latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ //')
-        current=$(cat "${theme}.log")
+
+        if (test -e "${theme}.log"); then current=$(cat "${theme}.log"); fi
         #current=$(head -n 1 ${theme}.log) #Alternative when every version installed is kept - see file creation
 
         if [ “$current” != “$latest” ]; then
