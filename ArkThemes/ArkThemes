@@ -22,9 +22,12 @@ else
 fi
 
 #
-# Configuration variables
+# Configuration
 # Themes need to be stored on github and repositories starting with es-theme
 #
+themes_rep="/roms/themes/" #themes installation path with trailing slash
+ram_folder="/dev/shm/theme_update_temp" # temp folder in RAM used during installation
+
 github_user="Jetup13"   #github user's name, alternative example "EmuELEC"
 collection_name="Jetup" #Name that will be displayed
 
@@ -36,15 +39,36 @@ installedthemes=()
 outdatedthemes=()
 changelog=()
 
+#
+# Options
+#
+shopt -s extglob # required for extented pattern recognition
+
 function GetChangeLog {
 		local theme=$1
+    local temparr=()
 
-		changelog=()
+    SAVEIFS=$IFS
+    IFS=$'\n' temparr=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | grep '"message": \|"date": ' | sed -e 's/.*\"message\": \"//' | sed -e 's/.*\"date\": \"//'))
+    IFS=$SAVEIFS
+    temparr=("${temparr[@]%,}")
+    temparr=("${temparr[@]//\"/}")
 
-		changelog=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | grep '"message": \|"date": ' | sed -e 's/\"message\": \"//' | sed -e 's/\"date\": \"//'))
-		changelog=("${changelog[@]%,}")
-		changelog=("${changelog[@]%\"}")
-    #To do : filter date duplicates
+    i=0
+    for value in "${temparr[@]}"; do
+      if [[ $i -eq 0 ]]; then
+        i=1
+        echo $i
+      elif [[ $i -eq 1 ]]; then
+        changelog+=("$value")
+        i=2
+        echo $i
+      elif [[ $i -eq 2 ]]; then
+        changelog+=("$value")
+        i=0
+        echo $i
+      fi
+    done
 }
 
 function InitLoader() {
@@ -54,34 +78,33 @@ function InitLoader() {
 	local cmd
 	local retval
 
-  shopt -s extglob # turn on extended glob
-
   dialog --infobox "Initialization..." 0 0
 
   wget -q --spider http://google.com
 
   if [ $? -eq 0 ]; then
     #Load online es-theme repositories
+    SAVEIFS=$IFS
     IFS=$'\n' onlinethemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/${github_user}/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
+    IFS=$SAVEIFS
     onlinethemes=("${onlinethemes[@]/#+([[:blank:]])/}") # remove leading space/tab from each element
     onlinethemes=("${onlinethemes[@]/%+([[:blank:]])/}") # remove trailing space/tab from each element
 
     #Load already installed themes
-    installedthemes=(/roms/themes/*/)             # This creates an array of the full paths to all subdirs
-    installedthemes=("${installedthemes[@]%/}")   # This removes the trailing slash on each item
+    installedthemes=$themes_rep
+    installedthemes+="*" # This creates an array of the full paths to all subdirs
     installedthemes=("${installedthemes[@]##*/}") # This removes the path prefix, leaving just the dir names
 
     #Load installed themes with new release
     for theme in "${onlinethemes[@]}"; do
-      if [ -d "/roms/themes/$theme" ]; then
-				#latest=($(wget --no-check-certificate -qO - "https://api.github.com/repos/Jetup13/es-theme-switch/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//'))
-        latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ //')
-
-        if (test -e "${theme}.log"); then current=$(cat "${theme}.log"); fi
-        #current=$(head -n 1 ${theme}.log) #Alternative when every version installed is kept - see file creation
-
-        if [ “$current” != “$latest” ]; then
-          outdatedthemes+=($theme)
+      if [ -d "$themes_rep$theme" ]; then
+				latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
+        if [ -e "${theme}.log" ]; then
+          current=$(cat "${theme}.log")
+          #current=$(head -n 1 ${theme}.log) #Alternative when every version installed is kept - see file creation
+        fi
+        if [ $current != $latest ]; then
+          outdatedthemes+=("$theme")
         fi
       fi
     done
@@ -114,44 +137,44 @@ function InstallTheme() {
 	local cmd
 	local retval
 
-  latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ //')
+  latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
 
   REP_URL="https://api.github.com/repos/${github_user}/${theme}/zipball"
 
   ABS_PATH=$(readlink -f "$0")
   ABS_DIR=$(dirname "$ABS_PATH")
 
-  mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
+  mkdir -p $ram_folder #create a temp folder in RAM
 
   #Downloading archive
   #sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
-  sudo wget -O /dev/shm/theme_update_temp/update.zip -c -e robots=off -np --progress=dot "$REP_URL" 2>&1 |
+  sudo wget -O $ram_folder"/update.zip" -c -e robots=off -np --progress=dot "$REP_URL" 2>&1 |
     stdbuf -oL sed -e 's\nothing to do\100%\g' |
     stdbuf -oL grep --line-buffered "%" |
     stdbuf -oL cut -f1 -d'%' | stdbuf -oL rev |
     stdbuf -oL cut -f1 -d' ' | stdbuf -oL rev |
     dialog --guage "Downloading: ${theme}" 0 100
 
-  if unzip -qt /dev/shm/theme_update_temp/update.zip | grep 'No errors detected'; then
+  if unzip -qt $ram_folder"/update.zip" | grep 'No errors detected'; then
     dialog --clear --infobox "Installing the update..." 0 0
 
     #Unzipping archive
-    sudo unzip -qo /dev/shm/theme_update_temp/update.zip -d /dev/shm/theme_update_temp/ #unzip directly in RAM
+    sudo unzip -qo $ram_folder"/update.zip" -d $ram_folder"/" #unzip directly in RAM
     #Extract the folder's name created from the archive
     #temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*" | sed 's/\/dev\/shm\/theme_update_temp\///g')
-    temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*")
+    temp=$(find $ram_folder -maxdepth 1 -type d -name "${github_user}*")
     temp="${temp##*/}"
     #Init the variable
-    THEME_CONTENT=/dev/shm/theme_update_temp/$temp/*
+    THEME_CONTENT="${ram_folder}/${temp}/*"
     #Create folder if necessary
-    mkdir -p /roms/themes/$theme
+    mkdir -p $themes_rep$theme
     #Overwritting existing files
-    cp -rf $THEME_CONTENT /roms/themes/$theme
+    cp -rf $THEME_CONTENT $themes_rep$theme
     #Create the theme's log file for version management
-    echo $latest >${theme}.log
+    echo $latest > ${theme}.log
     #echo $latest >> ${theme}.log #alternative to keep every version installed, reading also need to be modified
     #Deleting temporary files
-    sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
+    sudo rm -rf $ram_folder #remove the temp folder from RAM
 
     dialog --clear --infobox "Theme $theme updated successfully!" 0 0
 
@@ -162,7 +185,7 @@ function InstallTheme() {
   else
     #Theme update have failed
     #Deleting temporary files
-    sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
+    sudo rm -rf $ram_folder #remove the temp folder from RAM
 
     cmd=$(dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 >/dev/tty1)
     retval=$?
@@ -182,7 +205,7 @@ function RemoveTheme() {
 
   dialog --clear --infobox "Removing $theme ..." 0 0
 
-  sudo rm -rf "/roms/themes/$theme"
+  sudo rm -rf $themes_rep$theme
   sudo rm -f ${theme}.log
 
   dialog --clear --infobox "Theme $theme successfully removed!" 0 0
@@ -402,7 +425,7 @@ function MainMenu() {
 	local choice
   local retval
 
-  cmd=(dialog --clear --no-cancel --backtitle "${collection_name} Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" 15)
+  cmd=(dialog --clear --no-cancel --backtitle "${collection_name} Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
   if [[ -n "${outdatedthemes[*]}" ]]; then
     options=(
