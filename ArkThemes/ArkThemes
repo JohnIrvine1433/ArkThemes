@@ -70,11 +70,20 @@ function GetChangeLog {
     done
 }
 
+function LoadThemes {
+  #(re)Load already installed themes
+  unset installedthemes
+  installedthemes=(/roms/themes/*) # This creates an array of the full paths to all subdirs
+  installedthemes=("${installedthemes[@]##*/}") # This removes the path prefix, leaving just the dir names
+}
+
 function InitLoader() {
 	local cmd
 	local retval
 
-  dialog --backtitle "ArkThemes" --infobox "Initialization... Please wait !" 0 0 2>&1 >/dev/tty1
+  dialog --clear
+  dialog --infobox "Initialization... Please wait !" 0 0
+  sleep 1
 
   wget -q --spider http://google.com
 
@@ -86,14 +95,12 @@ function InitLoader() {
     onlinethemes=("${onlinethemes[@]/#+([[:blank:]])/}") # remove leading space/tab from each element
     onlinethemes=("${onlinethemes[@]/%+([[:blank:]])/}") # remove trailing space/tab from each element
 
-    #Load already installed themes
-    installedthemes=(/roms/themes/*) # This creates an array of the full paths to all subdirs
-    installedthemes=("${installedthemes[@]##*/}") # This removes the path prefix, leaving just the dir names
+    LoadThemes
 
     MainMenu
 
   else
-    cmd=$(dialog --clear --backtitle "ArkThemes" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 >/dev/tty1)
+    cmd=$(dialog --backtitle "ArkThemes" --yes-label "Try again" --no-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 >/dev/tty1)
 
     retval=$?
     case $retval in
@@ -134,10 +141,12 @@ function InstallTheme() {
     stdbuf -oL grep --line-buffered "%" |
     stdbuf -oL cut -f1 -d'%' | stdbuf -oL rev |
     stdbuf -oL cut -f1 -d' ' | stdbuf -oL rev |
-    dialog --guage "Downloading: ${theme}" 0 100
+    dialog --guage "Downloading: ${theme}" 0 0
 
   if unzip -qt "/dev/shm/theme_update_temp/update.zip" | grep 'No errors detected'; then
-    dialog --clear --infobox "Installing the update..." 0 0
+    dialog --clear
+    dialog --infobox "Installing the update..." 0 0
+    sleep 1
 
     #Unzipping archive
     sudo unzip -qo "/dev/shm/theme_update_temp/update.zip" -d "/dev/shm/theme_update_temp/" #unzip directly in RAM
@@ -157,18 +166,18 @@ function InstallTheme() {
     #Deleting temporary files
     sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-    dialog --clear --infobox "Theme $theme updated successfully!" 0 0
+    LoadThemes
 
-    sleep 3
+    dialog --clear --backtitle "${backtitle}" --msgbox "Theme $theme updated successfully!" 0 0 2>&1 >/dev/tty1
 
     MainMenu
 
   else
-    #Theme update have failed
+    #Install failed
     #Deleting temporary files
     sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-    cmd=$(dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 >/dev/tty1)
+    cmd=$(dialog --yes-label "Try again" --no-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 >/dev/tty1)
     retval=$?
     case $retval in
     0)
@@ -184,14 +193,17 @@ function InstallTheme() {
 function RemoveTheme() {
   local theme="$1"
 
-  dialog --clear --infobox "Removing $theme ..." 0 0
+  dialog --clear
+  dialog --infobox "Removing $theme ..." 0 0
 
   sudo rm -rf /roms/themes/$theme
   sudo rm -f ${theme}.log
 
-  dialog --clear --infobox "Theme $theme successfully removed!" 0 0
-  sleep 3
-  MainMenu
+  LoadThemes
+
+  dialog --clear --backtitle "${backtitle}" --msgbox "Theme $theme successfully removed!" 0 0 2>&1 >/dev/tty1
+
+  UninstallMenu
 }
 
 function UninstallMenu() {
@@ -209,7 +221,7 @@ function UninstallMenu() {
     for theme in "${themes2remove[@]}"; do
       options+=($theme "Uninstall")
     done
-    options+=(Other "Uninstall a system's theme")
+    options+=(Other "System themes")
     title="[ Remove ${collection_name} Themes ]"
   else
     # Uninstall non managed themes
@@ -220,7 +232,7 @@ function UninstallMenu() {
     title="\Zb\Z1[ Caution - These themes cannot be reinstalled ]"
   fi
 
-  cmd=(dialog --colors --clear --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
+  cmd=(dialog --colors --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
 
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
@@ -245,13 +257,15 @@ function UpdateSubMenu {
 	local cmd
 	local retval
 
+  theme=${theme/HELP }
   commitmsg=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\",//')
 
-  cmd=$(dialog --clear --backtitle "${backtitle}" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}, update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
+  cmd=$(dialog --backtitle "${backtitle}" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}, update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
   0)
+    updates_checked=0
     InstallTheme "$theme"
     ;;
   1)
@@ -272,7 +286,7 @@ function UpdateMenu() {
   fi
 
   if [[ -z "$outdatedthemes" ]]; then
-    dialog --clear --backtitle "${backtitle}" --yesno "No updates available... Check again for updates ?" 0 0 2>&1 >/dev/tty1
+    dialog --backtitle "${backtitle}" --yesno "No updates available... Check again for updates ?" 0 0 2>&1 >/dev/tty1
     retval=$?
     case $retval in
     0)
@@ -290,19 +304,20 @@ function UpdateMenu() {
     options+=($theme "Update")
   done
 
-  cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
+  cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
   0)
+    updates_checked=0
     InstallTheme "${choices[0]}"
     ;;
   1)
     MainMenu
     ;;
   2)
-    UpdateSubMenu "$theme"
+    UpdateSubMenu "${choices[0]}"
     ;;
   esac
 }
@@ -313,7 +328,8 @@ function CheckUpdates() {
 	local current
   local retval
 
-  dialog --clear --backtitle "${backtitle}" --infobox "Checking for updates... Please wait !" 0 0 2>&1 >/dev/tty1
+  dialog --clear
+  dialog --infobox "Checking for updates... Please wait !" 0 0
 
   #Load installed themes with new release
   for theme in "${onlinethemes[@]}"; do
@@ -332,10 +348,10 @@ function CheckUpdates() {
   updates_checked=1
 
   if [[ -z "$outdatedthemes" ]]; then
-    dialog --clear --backtitle "${backtitle}" --msgbox "All your installed ${collection_name} themes are up to date !" 0 0 2>&1 >/dev/tty1
+    dialog --backtitle "${backtitle}" --msgbox "All your installed ${collection_name} themes are up to date !" 0 0 2>&1 >/dev/tty1
     MainMenu
   else
-    dialog --clear --backtitle "${backtitle}" --yesno "Updates avaible ! Update now ?" 0 0 2>&1 >/dev/tty1
+    dialog --backtitle "${backtitle}" --yesno "Updates avaible ! Update now ?" 0 0 2>&1 >/dev/tty1
     retval=$?
     case $retval in
     0)
@@ -354,9 +370,10 @@ function InstallSubMenu {
 	local cmd
 	local retval
 
+  theme=${theme/HELP }
 	description=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}" | sed '/\"description\":/!d;q' | sed -e 's/\"description\": \"//' | sed -e 's/\",//')
 
-  cmd=$(dialog --clear --backtitle "${backtitle}" --yes-label "Install" --no-label "Back" --yesno "${theme} description : ${description}" 0 0 2>&1 >/dev/tty1)
+  cmd=$(dialog --backtitle "${backtitle}" --yes-label "Install" --no-label "Back" --yesno "${theme} description : ${description}" 0 0 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
@@ -383,7 +400,7 @@ function InstallMenu() {
         options+=($theme "Install")
       fi
     done
-    options+=(Other "Reinstall an existing theme")
+    options+=(Other "Reinstall")
     title="[ Install ${collection_name} Themes ]"
   else
     # Reinstall a theme
@@ -395,7 +412,7 @@ function InstallMenu() {
     title="[ Reinstall ${collection_name} Themes ]"
   fi
 
-  cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
+  cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
@@ -419,6 +436,7 @@ function InstallMenu() {
 }
 
 function ExitApp() {
+  clear
   pgrep -f oga_controls | sudo xargs kill -9 >/dev/null 2>&1
   pgrep -f rg351_controls | sudo xargs kill -9 >/dev/null 2>&1
   sudo systemctl restart emulationstation
@@ -451,8 +469,8 @@ function UpdateArkThemes() {
   fi
   printf "\nDeleting temporary files...\n"
   sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
-
-  dialog --backtitle "ArkThemes" --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50 >/dev/tty1
+  dialog --clear
+  dialog --infobox "\nPlease launch ArkThemes again and enjoy ..." 0 0
   sleep 3
 
   ExitMenu
@@ -465,24 +483,15 @@ function MainMenu() {
 	local choice
   local retval
 
-  cmd=(dialog --clear --no-cancel --backtitle "${backtitle}" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
+  cmd=(dialog --no-cancel --backtitle "${backtitle}" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
-  if [[ -n "${outdatedthemes[*]}" ]]; then
-    options=(
-      0 "Update(s) available!"
-      1 "Install a theme"
-      2 "Uninstall a theme"
-      3 "Update ArkThemes"
-      4 "Exit to emulationstation"
-    )
-  else
-    options=(
-      1 "Install a theme"
-      2 "Uninstall a theme"
-      3 "Update ArkThemes"
-      4 "Exit to emulationstation"
-    )
-  fi
+  options=(
+      A "Install a theme"
+      B "Update a theme"
+      C "Uninstall a theme"
+      D "Update ArkThemes"
+      E "Exit to emulationstation"
+  )
 
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
@@ -491,11 +500,11 @@ function MainMenu() {
   0)
     for choice in $choices; do
       case $choice in
-      0) UpdateMenu ;;
-      1) InstallMenu ;;
-      2) UninstallMenu ;;
-      3) UpdateArkThemes ;;
-      4) ExitApp ;;
+      A) InstallMenu ;;
+      B) UpdateMenu ;;
+      C) UninstallMenu ;;
+      D) UpdateArkThemes ;;
+      E) ExitApp ;;
       esac
     done
     ;;
