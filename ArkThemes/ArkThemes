@@ -25,11 +25,9 @@ fi
 # Configuration
 # Themes need to be stored on github and repositories starting with es-theme
 #
-themes_rep="/roms/themes/" #themes installation path with trailing slash
-ram_folder="/dev/shm/theme_update_temp" # temp folder in RAM used during installation
-
 github_user="Jetup13"   #github user's name, alternative example "EmuELEC"
 collection_name="Jetup" #Name that will be displayed
+backtitle="ArkThemes - ${collection_name} collection"
 
 #
 # Reused global variables
@@ -38,6 +36,7 @@ onlinethemes=()
 installedthemes=()
 outdatedthemes=()
 changelog=()
+updates_checked=0
 
 #
 # Options
@@ -72,13 +71,10 @@ function GetChangeLog {
 }
 
 function InitLoader() {
-	local theme
-	local latest
-	local current
 	local cmd
 	local retval
 
-  dialog --infobox "Initialization..." 0 0
+  dialog --backtitle "ArkThemes" --infobox "Initialization... Please wait !" 0 0 2>&1 >/dev/tty1
 
   wget -q --spider http://google.com
 
@@ -91,28 +87,13 @@ function InitLoader() {
     onlinethemes=("${onlinethemes[@]/%+([[:blank:]])/}") # remove trailing space/tab from each element
 
     #Load already installed themes
-    installedthemes=$themes_rep
-    installedthemes+="*" # This creates an array of the full paths to all subdirs
+    installedthemes=(/roms/themes/*) # This creates an array of the full paths to all subdirs
     installedthemes=("${installedthemes[@]##*/}") # This removes the path prefix, leaving just the dir names
-
-    #Load installed themes with new release
-    for theme in "${onlinethemes[@]}"; do
-      if [ -d "$themes_rep$theme" ]; then
-				latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
-        if [ -e "${theme}.log" ]; then
-          current=$(cat "${theme}.log")
-          #current=$(head -n 1 ${theme}.log) #Alternative when every version installed is kept - see file creation
-        fi
-        if [ $current != $latest ]; then
-          outdatedthemes+=("$theme")
-        fi
-      fi
-    done
 
     MainMenu
 
   else
-    cmd=$(dialog --clear --backtitle "System" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 >/dev/tty1)
+    cmd=$(dialog --clear --backtitle "ArkThemes" --yes-label "Try again" --cancel-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 >/dev/tty1)
 
     retval=$?
     case $retval in
@@ -144,37 +125,37 @@ function InstallTheme() {
   ABS_PATH=$(readlink -f "$0")
   ABS_DIR=$(dirname "$ABS_PATH")
 
-  mkdir -p $ram_folder #create a temp folder in RAM
+  mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
 
   #Downloading archive
   #sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
-  sudo wget -O $ram_folder"/update.zip" -c -e robots=off -np --progress=dot "$REP_URL" 2>&1 |
+  sudo wget -O "/dev/shm/theme_update_temp/update.zip" -c -e robots=off -np --progress=dot "$REP_URL" 2>&1 |
     stdbuf -oL sed -e 's\nothing to do\100%\g' |
     stdbuf -oL grep --line-buffered "%" |
     stdbuf -oL cut -f1 -d'%' | stdbuf -oL rev |
     stdbuf -oL cut -f1 -d' ' | stdbuf -oL rev |
     dialog --guage "Downloading: ${theme}" 0 100
 
-  if unzip -qt $ram_folder"/update.zip" | grep 'No errors detected'; then
+  if unzip -qt "/dev/shm/theme_update_temp/update.zip" | grep 'No errors detected'; then
     dialog --clear --infobox "Installing the update..." 0 0
 
     #Unzipping archive
-    sudo unzip -qo $ram_folder"/update.zip" -d $ram_folder"/" #unzip directly in RAM
+    sudo unzip -qo "/dev/shm/theme_update_temp/update.zip" -d "/dev/shm/theme_update_temp/" #unzip directly in RAM
     #Extract the folder's name created from the archive
     #temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*" | sed 's/\/dev\/shm\/theme_update_temp\///g')
-    temp=$(find $ram_folder -maxdepth 1 -type d -name "${github_user}*")
+    temp=$(find /dev/shm/theme_update_temp -maxdepth 1 -type d -name "${github_user}*")
     temp="${temp##*/}"
     #Init the variable
-    THEME_CONTENT="${ram_folder}/${temp}/*"
+    THEME_CONTENT="/dev/shm/theme_update_temp/${temp}/*"
     #Create folder if necessary
-    mkdir -p $themes_rep$theme
+    mkdir -p /roms/themes/$theme
     #Overwritting existing files
-    cp -rf $THEME_CONTENT $themes_rep$theme
+    cp -rf $THEME_CONTENT /roms/themes/$theme
     #Create the theme's log file for version management
     echo $latest > ${theme}.log
     #echo $latest >> ${theme}.log #alternative to keep every version installed, reading also need to be modified
     #Deleting temporary files
-    sudo rm -rf $ram_folder #remove the temp folder from RAM
+    sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
     dialog --clear --infobox "Theme $theme updated successfully!" 0 0
 
@@ -185,7 +166,7 @@ function InstallTheme() {
   else
     #Theme update have failed
     #Deleting temporary files
-    sudo rm -rf $ram_folder #remove the temp folder from RAM
+    sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
     cmd=$(dialog --clear --yes-label "Try again" --cancel-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 >/dev/tty1)
     retval=$?
@@ -205,7 +186,7 @@ function RemoveTheme() {
 
   dialog --clear --infobox "Removing $theme ..." 0 0
 
-  sudo rm -rf $themes_rep$theme
+  sudo rm -rf /roms/themes/$theme
   sudo rm -f ${theme}.log
 
   dialog --clear --infobox "Theme $theme successfully removed!" 0 0
@@ -239,7 +220,7 @@ function UninstallMenu() {
     title="\Zb\Z1[ Caution - These themes cannot be reinstalled ]"
   fi
 
-  cmd=(dialog --colors --clear --backtitle "Themes removal" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
+  cmd=(dialog --colors --clear --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
 
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
@@ -266,7 +247,7 @@ function UpdateSubMenu {
 
   commitmsg=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\",//')
 
-  cmd=$(dialog --clear --backtitle "${theme}" --yes-label "Update" --cancel-label "Back" --yesno "Update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
+  cmd=$(dialog --clear --backtitle "${backtitle}" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}, update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
@@ -286,12 +267,30 @@ function UpdateMenu() {
   local choices
   local retval
 
+  if [[ $updates_checked -eq 0 ]]; then
+    CheckUpdates
+  fi
+
+  if [[ -z "$outdatedthemes" ]]; then
+    dialog --clear --backtitle "${backtitle}" --yesno "No updates available... Check again for updates ?" 0 0 2>&1 >/dev/tty1
+    retval=$?
+    case $retval in
+    0)
+      updates_checked=0
+      CheckUpdates
+      ;;
+    1)
+      MainMenu
+      ;;
+    esac
+  fi
+
   # Select themes to update
   for theme in "${outdatedthemes[@]}"; do
     options+=($theme "Update")
   done
 
-  cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${collection_name} Themes" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
+  cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
@@ -308,6 +307,47 @@ function UpdateMenu() {
   esac
 }
 
+function CheckUpdates() {
+  local theme
+	local latest
+	local current
+  local retval
+
+  dialog --clear --backtitle "${backtitle}" --infobox "Checking for updates... Please wait !" 0 0 2>&1 >/dev/tty1
+
+  #Load installed themes with new release
+  for theme in "${onlinethemes[@]}"; do
+    if [ -d "/roms/themes/$theme" ]; then
+      latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
+      if [ -e "${theme}.log" ]; then
+        current=$(cat "${theme}.log")
+        #current=$(head -n 1 ${theme}.log) #Alternative when every version installed is kept - see file creation
+      fi
+      if [[ "$current" != "$latest" ]]; then
+        outdatedthemes+=("$theme")
+      fi
+    fi
+  done
+
+  updates_checked=1
+
+  if [[ -z "$outdatedthemes" ]]; then
+    dialog --clear --backtitle "${backtitle}" --msgbox "All your installed ${collection_name} themes are up to date !" 0 0 2>&1 >/dev/tty1
+    MainMenu
+  else
+    dialog --clear --backtitle "${backtitle}" --yesno "Updates avaible ! Update now ?" 0 0 2>&1 >/dev/tty1
+    retval=$?
+    case $retval in
+    0)
+      UpdateMenu
+      ;;
+    1)
+      MainMenu
+      ;;
+    esac
+  fi
+}
+
 function InstallSubMenu {
   local theme="$1"
   local description
@@ -316,7 +356,7 @@ function InstallSubMenu {
 
 	description=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}" | sed '/\"description\":/!d;q' | sed -e 's/\"description\": \"//' | sed -e 's/\",//')
 
-  cmd=$(dialog --clear --backtitle "${theme}" --yes-label "Install" --cancel-label "Back" --yesno "Theme description :\n${description}" 0 0 2>&1 >/dev/tty1)
+  cmd=$(dialog --clear --backtitle "${backtitle}" --yes-label "Install" --no-label "Back" --yesno "${theme} description : ${description}" 0 0 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
@@ -355,7 +395,7 @@ function InstallMenu() {
     title="[ Reinstall ${collection_name} Themes ]"
   fi
 
-  cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${collection_name} Themes" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
+  cmd=(dialog --clear --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
@@ -412,7 +452,7 @@ function UpdateArkThemes() {
   printf "\nDeleting temporary files...\n"
   sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
 
-  dialog --backtitle "System" --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50 >/dev/tty1
+  dialog --backtitle "ArkThemes" --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50 >/dev/tty1
   sleep 3
 
   ExitMenu
@@ -425,7 +465,7 @@ function MainMenu() {
 	local choice
   local retval
 
-  cmd=(dialog --clear --no-cancel --backtitle "${collection_name} Themes" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
+  cmd=(dialog --clear --no-cancel --backtitle "${backtitle}" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
   if [[ -n "${outdatedthemes[*]}" ]]; then
     options=(
