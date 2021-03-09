@@ -125,6 +125,9 @@ function InstallTheme() {
 	local cmd
 	local retval
 
+    dialog --clear
+    dialog --infobox "Downloading the update..." 0 0
+
   latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
 
   REP_URL="https://api.github.com/repos/${github_user}/${theme}/zipball"
@@ -135,13 +138,8 @@ function InstallTheme() {
   mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
 
   #Downloading archive
-  #sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
-  sudo wget -O "/dev/shm/theme_update_temp/update.zip" -c -e robots=off -np --progress=dot "$REP_URL" 2>&1 |
-    stdbuf -oL sed -e 's\nothing to do\100%\g' |
-    stdbuf -oL grep --line-buffered "%" |
-    stdbuf -oL cut -f1 -d'%' | stdbuf -oL rev |
-    stdbuf -oL cut -f1 -d' ' | stdbuf -oL rev |
-    dialog --guage "Downloading: ${theme}" 0 0
+  sudo wget -q "$REP_URL" -O /dev/shm/theme_update_temp/update.zip
+  #sudo wget -O "/dev/shm/theme_update_temp/update.zip" -c -e robots=off -np --progress=dot "$REP_URL" 2>&1 | stdbuf -oL sed -e 's\nothing to do\100%\g' | stdbuf -oL grep --line-buffered "%" | stdbuf -oL cut -f1 -d'%' | stdbuf -oL rev | stdbuf -oL cut -f1 -d' ' | stdbuf -oL rev | dialog --guage "Downloading: ${theme}" 0 0
 
   if unzip -qt "/dev/shm/theme_update_temp/update.zip" | grep 'No errors detected'; then
     dialog --clear
