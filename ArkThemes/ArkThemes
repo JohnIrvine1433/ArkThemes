@@ -22,7 +22,14 @@ else
 fi
 
 #
-# Configuration
+# ArkThemes Configuration
+#
+github_owner="JohnIrvine1433" #Used for ArkThemes update function
+github_repo="ArkThemes" #Used for ArkThemes update function
+current_version="1.0.0"
+
+#
+# Themes collection configuration
 # Themes need to be stored on github and repositories starting with es-theme
 #
 github_user="Jetup13"   #github user's name, alternative example "EmuELEC"
@@ -88,6 +95,9 @@ function InitLoader() {
   wget -q --spider http://google.com
 
   if [ $? -eq 0 ]; then
+    #Get latest ArkThemes tag version
+    latest=$(wget --no-check-certificate -qO  "https://api.github.com/repos/$1/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
     #Load online es-theme repositories
     SAVEIFS=$IFS
     IFS=$'\n' onlinethemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/${github_user}/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
@@ -441,15 +451,16 @@ function ExitApp() {
 }
 
 function UpdateArkThemes() {
+  local UPDATE_URL="https://api.github.com/repos/${github_owner}/${github_repo}/zipball"
+  local PAYLOAD=/dev/shm/payload_temp/*
 
-  UPDATE_URL="https://github.com/TadMSTR/ArkThemes/releases/download/update/ArkThemes.zip"
-  PAYLOAD=/dev/shm/payload_temp/*
+  dialog --clear
+  dialog --infobox "Starting update of ArkThemes..." 5 50
+
   cd /roms/tools
   sudo sh -c 'printf "\033c" > /dev/tty1'
-  printf "\nStarting update of ArkThemes..."
   mkdir -p /dev/shm/payload_temp #create a temp folder in RAM
 
-  printf "\nDownloading archive for ArkThemes...\n"
   sudo wget -q "$UPDATE_URL" -O /dev/shm/payload_temp/update.zip
   if unzip -qt /dev/shm/payload_temp/update.zip | grep 'No errors detected'; then
     printf "\nUnzipping archive..."
@@ -461,9 +472,8 @@ function UpdateArkThemes() {
     printf "\nAnberThemes updated successfully."
     sleep 3
   else
-    printf "\nTheme update have failed because the archive did not download correctly."
-    printf "\nCheck your connection and try again.\n"
-    sleep 6
+    dialog --clear
+    dialog --infobox "Theme update have failed because the archive did not download correctly. heck your connection and try again." 10 50
   fi
   printf "\nDeleting temporary files...\n"
   sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
