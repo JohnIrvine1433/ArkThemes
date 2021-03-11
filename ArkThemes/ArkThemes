@@ -82,7 +82,7 @@ function InitLoader() {
 	local retval
 
   dialog --clear
-  dialog --infobox "Initialization... Please wait !" 0 0
+  dialog --infobox "Initialization... Please wait !" 5 50
   sleep 1
 
   wget -q --spider http://google.com
@@ -126,7 +126,7 @@ function InstallTheme() {
 	local retval
 
     dialog --clear
-    dialog --infobox "Downloading the update..." 0 0
+    dialog --infobox "Downloading the update..." 5 50
 
   latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
 
@@ -143,7 +143,7 @@ function InstallTheme() {
 
   if unzip -qt "/dev/shm/theme_update_temp/update.zip" | grep 'No errors detected'; then
     dialog --clear
-    dialog --infobox "Installing the update..." 0 0
+    dialog --infobox "Installing the update..." 5 50
     sleep 1
 
     #Unzipping archive
@@ -192,7 +192,7 @@ function RemoveTheme() {
   local theme="$1"
 
   dialog --clear
-  dialog --infobox "Removing $theme ..." 0 0
+  dialog --infobox "Removing $theme ..." 5 50
 
   sudo rm -rf /roms/themes/$theme
   sudo rm -f ${theme}.log
@@ -327,7 +327,7 @@ function CheckUpdates() {
   local retval
 
   dialog --clear
-  dialog --infobox "Checking for updates... Please wait !" 0 0
+  dialog --infobox "Checking for updates... Please wait !" 5 50
 
   #Load installed themes with new release
   for theme in "${onlinethemes[@]}"; do
@@ -468,7 +468,7 @@ function UpdateArkThemes() {
   printf "\nDeleting temporary files...\n"
   sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
   dialog --clear
-  dialog --infobox "\nPlease launch ArkThemes again and enjoy ..." 0 0
+  dialog --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50
   sleep 3
 
   ExitMenu
