@@ -44,6 +44,7 @@ installedthemes=()
 outdatedthemes=()
 changelog=()
 updates_checked=0
+latest_version
 
 #
 # Options
@@ -95,8 +96,8 @@ function InitLoader() {
   wget -q --spider http://google.com
 
   if [ $? -eq 0 ]; then
-    #Get latest ArkThemes tag version
-    latest=$(wget --no-check-certificate -qO  "https://api.github.com/repos/$1/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    #Get latest ArkThemes version
+    latest_version=$(wget --no-check-certificate -qO  "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
     #Load online es-theme repositories
     SAVEIFS=$IFS
@@ -456,32 +457,43 @@ function UpdateArkThemes() {
 
   dialog --clear
   dialog --infobox "Starting update of ArkThemes..." 5 50
+  sleep 1
 
   cd /roms/tools
-  sudo sh -c 'printf "\033c" > /dev/tty1'
+ 
   mkdir -p /dev/shm/payload_temp #create a temp folder in RAM
 
   sudo wget -q "$UPDATE_URL" -O /dev/shm/payload_temp/update.zip
+
   if unzip -qt /dev/shm/payload_temp/update.zip | grep 'No errors detected'; then
-    printf "\nUnzipping archive..."
+    #Unzipping archive
     sudo unzip -qo /dev/shm/payload_temp/update.zip -d /dev/shm/payload_temp/ #unzip directly in RAM
     rm /dev/shm/payload_temp/update.zip
-    printf "\nOverwritting existing files..."
+
+    #Overwritting existing files
     cp -rf $PAYLOAD ./
     sudo chmod 777 ./*.sh #make sure newly downloaded scripts have right permission
-    printf "\nAnberThemes updated successfully."
-    sleep 3
-  else
-    dialog --clear
-    dialog --infobox "Theme update have failed because the archive did not download correctly. heck your connection and try again." 10 50
-  fi
-  printf "\nDeleting temporary files...\n"
-  sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
-  dialog --clear
-  dialog --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50
-  sleep 3
 
-  ExitMenu
+    #Deleting temporary files
+    sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
+
+    dialog --clear --backtitle "ArkThemes" --msgbox "ArkThemes updated successfully! Quit and relaunch to enjoy!" 0 0 2>&1 >/dev/tty1
+
+    ExitMenu
+
+  else
+
+  #Deleting temporary files
+  sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
+
+    dialog --clear
+    dialog --infobox "Update have failed because the archive did not download correctly. Check your connection and try again." 10 50
+    sleep 3
+
+MainMenu
+
+  fi
+ 
 }
 
 function MainMenu() {
