@@ -24,9 +24,9 @@ fi
 #
 # ArkThemes Configuration
 #
-github_owner="JohnIrvine1433" #Used for ArkThemes update function
-github_repo="ArkThemes" #Used for ArkThemes update function
-current_version="1.0.0"
+github_ark_owner="JohnIrvine1433" #Used for ArkThemes update function
+github_ark_repo="ArkThemes" #Used for ArkThemes update function
+current_ark_version="1.0.0"
 
 #
 # Themes collection configuration
@@ -43,7 +43,8 @@ onlinethemes=()
 installedthemes=()
 outdatedthemes=()
 changelog=()
-updates_checked=0
+themes_updates_checked=0
+latest_ark_version=""
 
 #
 # Options
@@ -77,7 +78,7 @@ function GetChangeLog {
     done
 }
 
-function LoadThemes {
+function LoadInstalledThemes {
   #(re)Load already installed themes
   unset installedthemes
   installedthemes=(/roms/themes/*) # This creates an array of the full paths to all subdirs
@@ -96,7 +97,7 @@ function InitLoader() {
 
   if [ $? -eq 0 ]; then
     #Get latest ArkThemes tag version
-    latest=$(wget --no-check-certificate -qO  "https://api.github.com/repos/$1/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    latest_ark_version=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_ark_owner}/${github_ark_repo}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
     #Load online es-theme repositories
     SAVEIFS=$IFS
@@ -105,7 +106,7 @@ function InitLoader() {
     onlinethemes=("${onlinethemes[@]/#+([[:blank:]])/}") # remove leading space/tab from each element
     onlinethemes=("${onlinethemes[@]/%+([[:blank:]])/}") # remove trailing space/tab from each element
 
-    LoadThemes
+    LoadInstalledThemes
 
     MainMenu
 
@@ -174,7 +175,8 @@ function InstallTheme() {
     #Deleting temporary files
     sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-    LoadThemes
+    LoadInstalledThemes #reload liste of installed themes (in case of install)
+    outdatedthemes=( "${outdatedthemes[@]/${theme}/}" )#in case of update, remove theme from outdated themes list
 
     dialog --clear --backtitle "${backtitle}" --msgbox "Theme $theme updated successfully!" 0 0 2>&1 >/dev/tty1
 
@@ -207,7 +209,7 @@ function RemoveTheme() {
   sudo rm -rf /roms/themes/$theme
   sudo rm -f ${theme}.log
 
-  LoadThemes
+  LoadInstalledThemes
 
   dialog --clear --backtitle "${backtitle}" --msgbox "Theme $theme successfully removed!" 0 0 2>&1 >/dev/tty1
 
@@ -273,7 +275,7 @@ function UpdateSubMenu {
   retval=$?
   case $retval in
   0)
-    updates_checked=0
+    themes_updates_checked=0
     InstallTheme "$theme"
     ;;
   1)
@@ -289,8 +291,8 @@ function UpdateMenu() {
   local choices
   local retval
 
-  if [[ $updates_checked -eq 0 ]]; then
-    CheckUpdates
+  if [[ $themes_updates_checked -eq 0 ]]; then
+    CheckThemesUpdates
   fi
 
   if [[ -z "$outdatedthemes" ]]; then
@@ -298,8 +300,8 @@ function UpdateMenu() {
     retval=$?
     case $retval in
     0)
-      updates_checked=0
-      CheckUpdates
+      themes_updates_checked=0
+      CheckThemesUpdates
       ;;
     1)
       MainMenu
@@ -318,7 +320,7 @@ function UpdateMenu() {
   retval=$?
   case $retval in
   0)
-    updates_checked=0
+    themes_updates_checked=0
     InstallTheme "${choices[0]}"
     ;;
   1)
@@ -330,7 +332,7 @@ function UpdateMenu() {
   esac
 }
 
-function CheckUpdates() {
+function CheckThemesUpdates() {
   local theme
 	local latest
 	local current
@@ -339,7 +341,8 @@ function CheckUpdates() {
   dialog --clear
   dialog --infobox "Checking for updates... Please wait !" 5 50
 
-  #Load installed themes with new release
+  #(re)Load installed themes with new release
+  unset outdatedthemes
   for theme in "${onlinethemes[@]}"; do
     if [ -d "/roms/themes/$theme" ]; then
       latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
@@ -353,7 +356,7 @@ function CheckUpdates() {
     fi
   done
 
-  updates_checked=1
+  themes_updates_checked=1
 
   if [[ -z "$outdatedthemes" ]]; then
     dialog --backtitle "${backtitle}" --msgbox "All your installed ${collection_name} themes are up to date !" 0 0 2>&1 >/dev/tty1
@@ -451,7 +454,7 @@ function ExitApp() {
 }
 
 function UpdateArkThemes() {
-  local UPDATE_URL="https://api.github.com/repos/${github_owner}/${github_repo}/zipball"
+  local UPDATE_URL="https://api.github.com/repos/${github_ark_owner}/${github_ark_repo}/zipball"
   local PAYLOAD=/dev/shm/payload_temp/*
 
   dialog --clear
@@ -481,7 +484,7 @@ function UpdateArkThemes() {
   dialog --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50
   sleep 3
 
-  ExitMenu
+  ExitApp
 }
 
 function MainMenu() {
@@ -493,13 +496,22 @@ function MainMenu() {
 
   cmd=(dialog --no-cancel --backtitle "${backtitle}" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
-  options=(
-      A "Install a theme"
-      B "Update a theme"
-      C "Uninstall a theme"
-      D "Update ArkThemes"
-      E "Exit to emulationstation"
-  )
+  if [[ "$latest_ark_version" != "$current_ark_version" ]]; then
+    options=(
+        0 "Update ArkThemes"
+        1 "Install a theme"
+        2 "Update a theme"
+        3 "Uninstall a theme"
+        4 "Exit to emulationstation"
+    )
+  else
+    options=(
+        1 "Install a theme"
+        2 "Update a theme"
+        3 "Uninstall a theme"
+        4 "Exit to emulationstation"
+    )
+  fi
 
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
@@ -508,11 +520,11 @@ function MainMenu() {
   0)
     for choice in $choices; do
       case $choice in
-      A) InstallMenu ;;
-      B) UpdateMenu ;;
-      C) UninstallMenu ;;
-      D) UpdateArkThemes ;;
-      E) ExitApp ;;
+      0) UpdateArkThemes ;;
+      1) InstallMenu ;;
+      2) UpdateMenu ;;
+      3) UninstallMenu ;;
+      4) ExitApp ;;
       esac
     done
     ;;
