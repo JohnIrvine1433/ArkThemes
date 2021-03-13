@@ -16,34 +16,32 @@ source ./helper
 
 isitoga=$(dmesg | grep odroidgo2-joypad/input/input2)
 if [ ! -z "$isitoga" ]; then
-  sudo ./oga_controls &  >/dev/null 2>&1
+  sudo ./oga_controls &
+  >/dev/null 2>&1
 else
-  sudo ./rg351_controls &  >/dev/null 2>&1
+  sudo ./rg351_controls &
+  >/dev/null 2>&1
 fi
 
 #
 # ArkThemes Configuration
 #
 github_ark_owner="JohnIrvine1433" #Used for ArkThemes update function
-github_ark_repo="ArkThemes" #Used for ArkThemes update function
+github_ark_repo="ArkThemes"       #Used for ArkThemes update function
 current_ark_version="1.0.0"
-backtitle="ArkThemes"
+collections=("Jetup13" "EmuELEC")
 
 #
-# ArkThemes Défault Settings
+# ArkThemes Default Settings
 #
 source arkthemes.cfg
 if [[ $? -eq 1 ]]; then
-  arkthemes_autocheckupdate="off" #Do note check for update at startup
-  themes_autocheckupdate="off" #Do note check for update at startup
+  # Do not check for updates at startup
+  arkthemes_autocheckupdate="off"
+  themes_autocheckupdate="off"
+  # Default themes collection - github repositories must start with es-theme
+  github_user="Jetup13" #github user's name
 fi
-
-#
-# Themes collection configuration
-# Themes need to be stored on github and repositories starting with es-theme
-#
-github_user="Jetup13"   #github user's name
-collection_name="Jetup" #Name that will be displayed within the app
 
 #
 # Reused global variables
@@ -56,7 +54,7 @@ themes_updates_checked=0
 arkthemes_updates_checked=0
 latest_ark_version=""
 arkthemes_outdated=""
-
+backtitle="ArkThemes - $github_user"
 
 #
 # Options
@@ -64,43 +62,43 @@ arkthemes_outdated=""
 shopt -s extglob # required for extented pattern recognition
 
 function GetChangeLog {
-		local theme=$1
-    local temparr=()
-    unset changelog
+  local theme=$1
+  local temparr=()
+  unset changelog
 
-    SAVEIFS=$IFS
-    IFS=$'\n' temparr=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | grep '"message": \|"date": ' | sed -e 's/.*\"message\": \"//' | sed -e 's/.*\"date\": \"//'))
-    IFS=$SAVEIFS
-    temparr=("${temparr[@]%,}")
-    temparr=("${temparr[@]//\"/}")
+  SAVEIFS=$IFS
+  IFS=$'\n' temparr=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | grep '"message": \|"date": ' | sed -e 's/.*\"message\": \"//' | sed -e 's/.*\"date\": \"//'))
+  IFS=$SAVEIFS
+  temparr=("${temparr[@]%,}")
+  temparr=("${temparr[@]//\"/}")
 
-    i=0
-    for value in "${temparr[@]}"; do
-      if [[ $i -eq 0 ]]; then
-        i=1
-        echo $i
-      elif [[ $i -eq 1 ]]; then
-        changelog+=("$value")
-        i=2
-        echo $i
-      elif [[ $i -eq 2 ]]; then
-        changelog+=("$value")
-        i=0
-        echo $i
-      fi
-    done
+  i=0
+  for value in "${temparr[@]}"; do
+    if [[ $i -eq 0 ]]; then
+      i=1
+      echo $i
+    elif [[ $i -eq 1 ]]; then
+      changelog+=("$value")
+      i=2
+      echo $i
+    elif [[ $i -eq 2 ]]; then
+      changelog+=("$value")
+      i=0
+      echo $i
+    fi
+  done
 }
 
 function LoadInstalledThemes {
   #(re)Load already installed themes
   unset installedthemes
-  installedthemes=(/roms/themes/*) # This creates an array of the full paths to all subdirs
+  installedthemes=(/roms/themes/*)              # This creates an array of the full paths to all subdirs
   installedthemes=("${installedthemes[@]##*/}") # This removes the path prefix, leaving just the dir names
 }
 
 function InitLoader() {
-	local cmd
-	local retval
+  local cmd
+  local retval
   local temparr
   local github_user
 
@@ -146,17 +144,17 @@ function InitLoader() {
 
 function InstallTheme() {
   local theme=$1
-	local latest
+  local latest
   local REP_URL
   local ABS_PATH
   local ABS_DIR
-	local temp
+  local temp
   local THEME_CONTENT
-	local cmd
-	local retval
+  local cmd
+  local retval
 
-    dialog --clear
-    dialog --infobox "Downloading the update..." 5 50
+  dialog --clear
+  dialog --infobox "Downloading the update..." 5 50
 
   latest=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"date\":/!d;q' | sed -e 's/\"date\": \"//' | sed -e 's/\"//' | sed -e 's/ *//')
 
@@ -189,13 +187,13 @@ function InstallTheme() {
     #Overwritting existing files
     cp -rf $THEME_CONTENT /roms/themes/$theme
     #Create the theme's log file for version management
-    echo $latest > ${theme}.log
+    echo $latest >${theme}.log
     #echo $latest >> ${theme}.log #alternative to keep every version installed, reading also need to be modified
     #Deleting temporary files
     sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-    LoadInstalledThemes #reload liste of installed themes (in case of install)
-    outdatedthemes=( "${outdatedthemes[@]/${theme}/}" )#in case of update, remove theme from outdated themes list
+    LoadInstalledThemes                               #reload liste of installed themes (in case of install)
+    outdatedthemes=("${outdatedthemes[@]/${theme}/}") #in case of update, remove theme from outdated themes list
 
     dialog --clear --backtitle "$backtitle" --msgbox "Theme $theme updated successfully!" 0 0 2>&1 >/dev/tty1
 
@@ -238,11 +236,11 @@ function RemoveTheme() {
 function UninstallMenu() {
   local themes2remove
   local theme
-	local options
+  local options
   local title
-	local	cmd
-	local choices
-	local retval
+  local cmd
+  local choice
+  local retval
 
   if [[ -z "$1" ]]; then
     # Uninstall managed themes
@@ -263,15 +261,15 @@ function UninstallMenu() {
 
   cmd=(dialog --colors --backtitle "$backtitle" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
 
-  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+  choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
   0)
-    if [ "${choices[0]}" == "Other" ]; then
-      UninstallMenu "${choices[0]}"
+    if [ "$choice" == "Other" ]; then
+      UninstallMenu "$choice"
     else
-      RemoveTheme "${choices[0]}"
+      RemoveTheme "$choice"
     fi
     ;;
   1)
@@ -283,10 +281,10 @@ function UninstallMenu() {
 function UpdateSubMenu {
   local theme="$1"
   local commitmsg
-	local cmd
-	local retval
+  local cmd
+  local retval
 
-  theme=${theme/HELP }
+  theme=${theme/HELP /}
   commitmsg=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\",//')
 
   cmd=$(dialog --backtitle "$backtitle" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}, update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
@@ -305,9 +303,9 @@ function UpdateSubMenu {
 
 function UpdateMenu() {
   local theme
-	local options
-	local cmd
-  local choices
+  local options
+  local cmd
+  local choice
   local retval
 
   if [[ $themes_updates_checked -eq 0 ]]; then
@@ -334,27 +332,27 @@ function UpdateMenu() {
   done
 
   cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "$backtitle" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
-  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+  choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
   0)
     themes_updates_checked=0
-    InstallTheme "${choices[0]}"
+    InstallTheme "$choice"
     ;;
   1)
     MainMenu
     ;;
   2)
-    UpdateSubMenu "${choices[0]}"
+    UpdateSubMenu "$choice"
     ;;
   esac
 }
 
 function CheckThemesUpdates() {
   local theme
-	local latest
-	local current
+  local latest
+  local current
   local retval
 
   dialog --clear
@@ -410,11 +408,11 @@ function CheckArkThemesUpdates() {
 function InstallSubMenu {
   local theme="$1"
   local description
-	local cmd
-	local retval
+  local cmd
+  local retval
 
-  theme=${theme/HELP }
-	description=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}" | sed '/\"description\":/!d;q' | sed -e 's/\"description\": \"//' | sed -e 's/\",//')
+  theme=${theme/HELP /}
+  description=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}" | sed '/\"description\":/!d;q' | sed -e 's/\"description\": \"//' | sed -e 's/\",//')
 
   cmd=$(dialog --backtitle "${backtitle}" --yes-label "Install" --no-label "Back" --yesno "${theme} description : ${description}" 0 0 2>&1 >/dev/tty1)
 
@@ -431,9 +429,9 @@ function InstallSubMenu {
 
 function InstallMenu() {
   local theme
-	local options
-	local cmd
-  local choices
+  local options
+  local cmd
+  local choice
   local retval
 
   if [[ -z "$1" ]]; then
@@ -456,23 +454,23 @@ function InstallMenu() {
   fi
 
   cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "$backtitle" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
-  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+  choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
   0)
-    if [ "${choices[0]}" == "Other" ]; then
-      InstallMenu "${choices[0]}"
+    if [ "$choice" == "Other" ]; then
+      InstallMenu "$choice"
     else
-      InstallTheme "${choices[0]}"
+      InstallTheme "$choice"
     fi
     ;;
   1)
     MainMenu
     ;;
   2)
-    if [ "${choices[0]}" != "Other" ]; then
-      InstallSubMenu "${choices[0]}"
+    if [ "$choice" != "Other" ]; then
+      InstallSubMenu "$choice"
     fi
     ;;
   esac
@@ -520,9 +518,9 @@ function UpdateArkThemes() {
 
 function ChangeLogMenu() {
   local theme
-	local options
-	local cmd
-  local choices
+  local options
+  local cmd
+  local choice
   local retval
 
   if [[ -z $1 ]]; then
@@ -532,12 +530,12 @@ function ChangeLogMenu() {
     done
 
     cmd=(dialog --cancel-label "Back" --backtitle "$backtitle" --title "[ Themes Changelog ]" --menu "Select theme to update:" "15" "50" "15")
-    choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+    choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
     retval=$?
     case $retval in
     0)
-      ChangeLogMenu "${choices[0]}"
+      ChangeLogMenu "$choice"
       ;;
     1)
       AdvancedMenu
@@ -558,18 +556,18 @@ function ChangeLogMenu() {
 function SettingsMenu() {
   local cmd
   local options
-  local choices
   local choice
+  local choices
   local retval
 
   cmd=(dialog --separate-output --backtitle "$backtitle" --title " [ Startup Options ] " --checklist "Select loading options\n NB : ArkThemes initialisation will take longer espacially if check for themes updates is activated :" "15" "50" "15")
 
   options=(
-        ArkThemes "Check for updates" $arkthemes_autocheckupdate
-        Themes "Check for update" $themes_autocheckupdate
+    ArkThemes "Check for updates" $arkthemes_autocheckupdate
+    Themes "Check for update" $themes_autocheckupdate
   )
 
-  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+  choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
@@ -579,9 +577,10 @@ function SettingsMenu() {
       ArkThemes) arkthemes_autocheckupdate="on" ;;
       Themes) themes_autocheckupdate="on" ;;
       esac
+      echo "arkthemes_autocheckupdate=\"${arkthemes_autocheckupdate}\"" >arkthemes.cfg
+      echo "themes_autocheckupdate=\"${themes_autocheckupdate}\"" >>arkthemes.cfg
+      echo "github_user=\"${github_user}\"" >>arkthemes.cfg
     done
-    echo 'arkthemes_autocheckupdate=\"${arkthemes_autocheckupdate}\"' > arkthemes.cfg
-    echo 'themes_autocheckupdate=\"${themes_autocheckupdate}\"' >> arkthemes.cfg
     ;;
   1)
     MainMenu
@@ -589,44 +588,76 @@ function SettingsMenu() {
   esac
 }
 
+function ThemeConfigMenu() {
+  local cmd
+  local options
+  local choice
+  local retval
+  local temp
+
+  cmd=(dialog --backtitle "$backtitle" --title " [ Themes Configuration ] " --radiolist "Set the themes collection to be used with ArkThemes :" "15" "50" "15")
+
+  for temp in "${collections[@]}"; do
+    if [ "$temp" == "$github_user" ]; then
+      options+=($temp "Themes collection" "on")
+    else
+      options+=($temp "Themes collection" "off")
+    fi
+  done
+
+  choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+
+  retval=$?
+  case $retval in
+  0)
+    github_user=$choice
+    echo "arkthemes_autocheckupdate=\"${arkthemes_autocheckupdate}\"" >arkthemes.cfg
+    echo "themes_autocheckupdate=\"${themes_autocheckupdate}\"" >>arkthemes.cfg
+    echo "github_user=\"${github_user}\"" >>arkthemes.cfg
+    ;;
+  1)
+    AdvancedMenu
+    ;;
+  esac
+}
+
 function AdvancedMenu() {
   local cmd
   local options
-  local choices
   local choice
   local retval
 
   cmd=(dialog --no-cancel --backtitle "$backtitle" --title " [ Advanced Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
   options=(
-        A "Update ArkThemes"
-        B "Themes Changelog"
-        C "Settings"
+    A "Update ArkThemes"
+    B "Themes Changelog"
+    C "Loading Settings"
+    D "Themes Configuration"
   )
 
-  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+  choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
   0)
-    for choice in $choices; do
-      case $choice in
-      A)
-        if [[ $arkthemes_updates_checked -eq 0 ]]; then
-          CheckArkThemesUpdates
+    case $choice in
+    A)
+      if [[ $arkthemes_updates_checked -eq 0 ]]; then
+        CheckArkThemesUpdates
+      else
+        if [[ $arkthemes_outdated -eq 0 ]]; then
+          dialog --clear --backtitle "$backtitle" --msgbox "ArkThemes is up to date." 0 0 2>&1 >/dev/tty1
+          AdvancedMenu
         else
-          if [[ $arkthemes_outdated -eq 0 ]]; then
-            dialog --clear --backtitle "$backtitle" --msgbox "ArkThemes is up to date." 0 0 2>&1 >/dev/tty1
-            AdvancedMenu
-          else
-            UpdateArkThemes
-          fi
+          UpdateArkThemes
         fi
-        ;;
-      B) ChangeLogMenu ;;
-      C) SettingsMenu ;;
-      esac
-    done
+      fi
+      ;;
+    B) ChangeLogMenu ;;
+    C) SettingsMenu ;;
+    D) ThemeConfigMenu ;;
+    esac
     ;;
   1)
     MainMenu
@@ -636,35 +667,32 @@ function AdvancedMenu() {
 
 function MainMenu() {
   local cmd
-	local options
-  local choices
-	local choice
+  local options
+  local choice
   local retval
 
   cmd=(dialog --no-cancel --backtitle "$backtitle" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
   options=(
-        A "Install a theme"
-        B "Update a theme"
-        C "Uninstall a theme"
-        D "Advanced Menu"
-        E "Exit to emulationstation"
+    A "Install a theme"
+    B "Update a theme"
+    C "Uninstall a theme"
+    D "Advanced Menu"
+    E "Exit to emulationstation"
   )
 
-  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+  choice=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
   0)
-    for choice in $choices; do
-      case $choice in
-      A) InstallMenu ;;
-      B) UpdateMenu ;;
-      C) UninstallMenu ;;
-      D) AdvancedMenu ;;
-      E) ExitApp ;;
-      esac
-    done
+    case $choice in
+    A) InstallMenu ;;
+    B) UpdateMenu ;;
+    C) UninstallMenu ;;
+    D) AdvancedMenu ;;
+    E) ExitApp ;;
+    esac
     ;;
   1)
     ExitApp
