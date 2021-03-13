@@ -326,6 +326,8 @@ function CheckUpdates() {
 	local current
   local retval
 
+unset outdatedthemes
+
   dialog --clear
   dialog --infobox "Checking for updates... Please wait !" 5 50
 
