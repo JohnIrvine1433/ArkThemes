@@ -489,7 +489,6 @@ function MainMenu() {
       A "Install a theme"
       B "Update a theme"
       C "Uninstall a theme"
-      D "Update ArkThemes"
       E "Exit to emulationstation"
   )
 
