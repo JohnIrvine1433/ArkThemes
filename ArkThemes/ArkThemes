@@ -29,6 +29,15 @@ github_ark_repo="ArkThemes" #Used for ArkThemes update function
 current_ark_version="1.0.0"
 
 #
+# ArkThemes Défault Settings
+#
+source arkthemes.cfg
+if [[ $? -eq 1 ]]; then
+  arkthemes_autocheckupdate="off" #Do note check for update at startup
+  themes_autocheckupdate="off" #Do note check for update at startup
+fi
+
+#
 # Themes collection configuration
 # Themes need to be stored on github and repositories starting with es-theme
 #
@@ -44,7 +53,9 @@ installedthemes=()
 outdatedthemes=()
 changelog=()
 themes_updates_checked=0
+arkthemes_updates_checked=0
 latest_ark_version=""
+arkthemes_outdated=""
 
 #
 # Options
@@ -54,6 +65,7 @@ shopt -s extglob # required for extented pattern recognition
 function GetChangeLog {
 		local theme=$1
     local temparr=()
+    unset changelog
 
     SAVEIFS=$IFS
     IFS=$'\n' temparr=($(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | grep '"message": \|"date": ' | sed -e 's/.*\"message\": \"//' | sed -e 's/.*\"date\": \"//'))
@@ -96,9 +108,6 @@ function InitLoader() {
   wget -q --spider http://google.com
 
   if [ $? -eq 0 ]; then
-    #Get latest ArkThemes tag version
-    latest_ark_version=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_ark_owner}/${github_ark_repo}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-
     #Load online es-theme repositories
     SAVEIFS=$IFS
     IFS=$'\n' onlinethemes=($(wget --no-check-certificate -qO - "https://api.github.com/users/${github_user}/repos" | grep '\"name\": \"es-theme' | sed -e 's/\"name\": \"\(.*\)\",/\1/'))
@@ -107,6 +116,13 @@ function InitLoader() {
     onlinethemes=("${onlinethemes[@]/%+([[:blank:]])/}") # remove trailing space/tab from each element
 
     LoadInstalledThemes
+
+    if [[ "$themes_autocheckupdate" == "on" ]]; then
+      CheckThemesUpdates
+    fi
+    if [[ "$arkthemes_autocheckupdate" == "on" ]]; then
+      CheckArkThemesUpdates
+    fi
 
     MainMenu
 
@@ -339,7 +355,7 @@ function CheckThemesUpdates() {
   local retval
 
   dialog --clear
-  dialog --infobox "Checking for updates... Please wait !" 5 50
+  dialog --infobox "Checking for themes updates... Please wait !" 5 50
 
   #(re)Load installed themes with new release
   unset outdatedthemes
@@ -358,21 +374,34 @@ function CheckThemesUpdates() {
 
   themes_updates_checked=1
 
-  if [[ -z "$outdatedthemes" ]]; then
-    dialog --backtitle "${backtitle}" --msgbox "All your installed ${collection_name} themes are up to date !" 0 0 2>&1 >/dev/tty1
-    MainMenu
+  if [[ -z $outdatedthemes ]]; then
+    dialog --clear
+    dialog --infobox "No updates available..." 5 50
   else
-    dialog --backtitle "${backtitle}" --yesno "Updates avaible ! Update now ?" 0 0 2>&1 >/dev/tty1
-    retval=$?
-    case $retval in
-    0)
-      UpdateMenu
-      ;;
-    1)
-      MainMenu
-      ;;
-    esac
+    dialog --clear
+    dialog --infobox "New updates available !!" 5 50
   fi
+}
+
+function CheckArkThemesUpdates() {
+
+  dialog --clear
+  dialog --infobox "Checking for ArkThemes updates... Please wait !" 5 50
+  sleep 1
+  #Get latest ArkThemes tag version
+  latest_ark_version=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_ark_owner}/${github_ark_repo}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+  arkthemes_updates_checked=1
+
+  if [[ "$latest_ark_version" != "$current_ark_version" ]]; then
+    arkthemes_outdated=1
+    dialog --clear
+    dialog --infobox "A new release is available !!" 5 50
+  else
+    arkthemes_outdated=0
+    dialog --clear
+    dialog --infobox "ArkThemes is up to date..." 5 50
+  fi
+
 }
 
 function InstallSubMenu {
@@ -458,7 +487,7 @@ function UpdateArkThemes() {
   local PAYLOAD=/dev/shm/payload_temp/*
 
   dialog --clear
-  dialog --infobox "Starting update of ArkThemes..." 5 50
+  dialog --infobox "Downloading ArkThemes update..." 5 50
 
   cd /roms/tools
   sudo sh -c 'printf "\033c" > /dev/tty1'
@@ -466,25 +495,140 @@ function UpdateArkThemes() {
 
   sudo wget -q "$UPDATE_URL" -O /dev/shm/payload_temp/update.zip
   if unzip -qt /dev/shm/payload_temp/update.zip | grep 'No errors detected'; then
-    printf "\nUnzipping archive..."
+    dialog --clear
+    dialog --infobox "Installing ArkThemes update..." 5 50
+    #Unzipping archive
     sudo unzip -qo /dev/shm/payload_temp/update.zip -d /dev/shm/payload_temp/ #unzip directly in RAM
     rm /dev/shm/payload_temp/update.zip
-    printf "\nOverwritting existing files..."
+    #Overwritting existing files
     cp -rf $PAYLOAD ./
     sudo chmod 777 ./*.sh #make sure newly downloaded scripts have right permission
-    printf "\nAnberThemes updated successfully."
-    sleep 3
+
+    dialog --clear
+    dialog --infobox "ArkThemes successfully updated !\nPlease relaunch ArkThemes." 5 50
   else
     dialog --clear
-    dialog --infobox "Theme update have failed because the archive did not download correctly. heck your connection and try again." 10 50
+    dialog --infobox "Theme update have failed because the archive did not download correctly. Check your connection and try again." 10 50
   fi
-  printf "\nDeleting temporary files...\n"
-  sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
-  dialog --clear
-  dialog --infobox "\nPlease launch ArkThemes again and enjoy ..." 5 50
-  sleep 3
 
-  ExitApp
+  #Deleting temporary files...
+  sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
+}
+
+function ChangeLogMenu() {
+  local theme
+	local options
+	local cmd
+  local choices
+  local retval
+
+  if [[ -z $1 ]]; then
+    # Load installed themes
+    for theme in "${installedthemes[@]}"; do
+      options+=($theme "See Changelog")
+    done
+
+    cmd=(dialog --cancel-label "Back" --backtitle "${backtitle}" --title "[ Themes Changelog ]" --menu "Select theme to update:" "15" "50" "15")
+    choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+
+    retval=$?
+    case $retval in
+    0)
+      ChangeLogMenu "${choices[0]}"
+      ;;
+    1)
+      AdvancedMenu
+      ;;
+    esac
+  else
+    GetChangeLog $1
+
+    SAVEIFS=$IFS
+    IFS=$'\n'
+    dialog --clear --backtitle "${backtitle}" --msgbox "$theme changelog :${changelog[*]}" 0 0 2>&1 >/dev/tty1
+    IFS=$SAVEIFS
+
+    AdvancedMenu
+  fi
+}
+
+function SettingsMenu() {
+  local cmd
+  local options
+  local choices
+  local choice
+  local retval
+
+  cmd=(dialog --separate-output --backtitle "${backtitle}" --title " [ Startup Options ] " --checklist "Select loading options\n NB : ArkThemes initialisation will take longer espacially if check for themes updates is activated :" "15" "50" "15")
+
+  options=(
+        ArkThemes "Check for updates" $arkthemes_autocheckupdate
+        Themes "Check for update" $themes_autocheckupdate
+  )
+
+  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+
+  retval=$?
+  case $retval in
+  0)
+    for choice in $choices; do
+      case $choice in
+      ArkThemes) arkthemes_autocheckupdate="on" ;;
+      Themes) themes_autocheckupdate="on" ;;
+      esac
+    done
+    echo 'arkthemes_autocheckupdate=\"${arkthemes_autocheckupdate}\"' > arkthemes.cfg
+    echo 'themes_autocheckupdate=\"${themes_autocheckupdate}\"' >> arkthemes.cfg
+    ;;
+  1)
+    MainMenu
+    ;;
+  esac
+}
+
+function AdvancedMenu() {
+  local cmd
+  local options
+  local choices
+  local choice
+  local retval
+
+  cmd=(dialog --no-cancel --backtitle "${backtitle}" --title " [ Advanced Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
+
+  options=(
+        A "Update ArkThemes"
+        B "Themes Changelog"
+        C "Settings"
+  )
+
+  choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
+
+  retval=$?
+  case $retval in
+  0)
+    for choice in $choices; do
+      case $choice in
+      A)
+        if [[ $arkthemes_updates_checked -eq 0 ]]; then
+          CheckArkThemesUpdates
+        else
+          if [[ $arkthemes_outdated -eq 0 ]]; then
+            dialog --clear --backtitle "ArkThemes" --msgbox "ArkThemes is up to date." 0 0 2>&1 >/dev/tty1
+            AdvancedMenu
+          else
+            UpdateArkThemes
+          fi
+        fi
+        ;;
+      B) ChangeLogMenu ;;
+      C) SettingsMenu ;;
+      esac
+    done
+    ;;
+  1)
+    MainMenu
+    ;;
+  esac
 }
 
 function MainMenu() {
@@ -496,22 +640,13 @@ function MainMenu() {
 
   cmd=(dialog --no-cancel --backtitle "${backtitle}" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
-  if [[ "$latest_ark_version" != "$current_ark_version" ]]; then
-    options=(
-        0 "Update ArkThemes"
-        1 "Install a theme"
-        2 "Update a theme"
-        3 "Uninstall a theme"
-        4 "Exit to emulationstation"
-    )
-  else
-    options=(
-        1 "Install a theme"
-        2 "Update a theme"
-        3 "Uninstall a theme"
-        4 "Exit to emulationstation"
-    )
-  fi
+  options=(
+        A "Install a theme"
+        B "Update a theme"
+        C "Uninstall a theme"
+        D "Advanced Menu"
+        E "Exit to emulationstation"
+  )
 
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
@@ -520,11 +655,11 @@ function MainMenu() {
   0)
     for choice in $choices; do
       case $choice in
-      0) UpdateArkThemes ;;
-      1) InstallMenu ;;
-      2) UpdateMenu ;;
-      3) UninstallMenu ;;
-      4) ExitApp ;;
+      A) InstallMenu ;;
+      B) UpdateMenu ;;
+      C) UninstallMenu ;;
+      D) AdvancedMenu ;;
+      E) ExitApp ;;
       esac
     done
     ;;
