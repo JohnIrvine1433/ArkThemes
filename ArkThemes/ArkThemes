@@ -27,6 +27,7 @@ fi
 github_ark_owner="JohnIrvine1433" #Used for ArkThemes update function
 github_ark_repo="ArkThemes" #Used for ArkThemes update function
 current_ark_version="1.0.0"
+backtitle="ArkThemes"
 
 #
 # ArkThemes Défault Settings
@@ -41,9 +42,8 @@ fi
 # Themes collection configuration
 # Themes need to be stored on github and repositories starting with es-theme
 #
-github_user="Jetup13"   #github user's name, alternative example "EmuELEC"
-collection_name="Jetup" #Name that will be displayed
-backtitle="ArkThemes - ${collection_name} collection"
+github_user="Jetup13"   #github user's name
+collection_name="Jetup" #Name that will be displayed within the app
 
 #
 # Reused global variables
@@ -56,6 +56,7 @@ themes_updates_checked=0
 arkthemes_updates_checked=0
 latest_ark_version=""
 arkthemes_outdated=""
+
 
 #
 # Options
@@ -100,6 +101,8 @@ function LoadInstalledThemes {
 function InitLoader() {
 	local cmd
 	local retval
+  local temparr
+  local github_user
 
   dialog --clear
   dialog --infobox "Initialization... Please wait !" 5 50
@@ -127,7 +130,7 @@ function InitLoader() {
     MainMenu
 
   else
-    cmd=$(dialog --backtitle "ArkThemes" --yes-label "Try again" --no-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 >/dev/tty1)
+    cmd=$(dialog --backtitle "$backtitle" --yes-label "Try again" --no-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 >/dev/tty1)
 
     retval=$?
     case $retval in
@@ -194,7 +197,7 @@ function InstallTheme() {
     LoadInstalledThemes #reload liste of installed themes (in case of install)
     outdatedthemes=( "${outdatedthemes[@]/${theme}/}" )#in case of update, remove theme from outdated themes list
 
-    dialog --clear --backtitle "${backtitle}" --msgbox "Theme $theme updated successfully!" 0 0 2>&1 >/dev/tty1
+    dialog --clear --backtitle "$backtitle" --msgbox "Theme $theme updated successfully!" 0 0 2>&1 >/dev/tty1
 
     MainMenu
 
@@ -227,7 +230,7 @@ function RemoveTheme() {
 
   LoadInstalledThemes
 
-  dialog --clear --backtitle "${backtitle}" --msgbox "Theme $theme successfully removed!" 0 0 2>&1 >/dev/tty1
+  dialog --clear --backtitle "$backtitle" --msgbox "Theme $theme successfully removed!" 0 0 2>&1 >/dev/tty1
 
   UninstallMenu
 }
@@ -248,7 +251,7 @@ function UninstallMenu() {
       options+=($theme "Uninstall")
     done
     options+=(Other "System themes")
-    title="[ Remove ${collection_name} Themes ]"
+    title="[ Remove Themes ]"
   else
     # Uninstall non managed themes
     themes2remove=($(comm -13 <(printf '%s\n' "${onlinethemes[@]}" | LC_COLLATE=C sort -f) <(printf '%s\n' "${installedthemes[@]}" | LC_COLLATE=C sort -f)))
@@ -258,7 +261,7 @@ function UninstallMenu() {
     title="\Zb\Z1[ Caution - These themes cannot be reinstalled ]"
   fi
 
-  cmd=(dialog --colors --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
+  cmd=(dialog --colors --backtitle "$backtitle" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
 
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
@@ -286,7 +289,7 @@ function UpdateSubMenu {
   theme=${theme/HELP }
   commitmsg=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\",//')
 
-  cmd=$(dialog --backtitle "${backtitle}" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}, update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
+  cmd=$(dialog --backtitle "$backtitle" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}, update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
@@ -312,7 +315,7 @@ function UpdateMenu() {
   fi
 
   if [[ -z "$outdatedthemes" ]]; then
-    dialog --backtitle "${backtitle}" --yesno "No updates available... Check again for updates ?" 0 0 2>&1 >/dev/tty1
+    dialog --backtitle "$backtitle" --yesno "No updates available... Check again for updates ?" 0 0 2>&1 >/dev/tty1
     retval=$?
     case $retval in
     0)
@@ -330,7 +333,7 @@ function UpdateMenu() {
     options+=($theme "Update")
   done
 
-  cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
+  cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "$backtitle" --title "[ New releases ]" --menu "Select theme to update:" "15" "50" "15")
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
@@ -441,7 +444,7 @@ function InstallMenu() {
       fi
     done
     options+=(Other "Reinstall")
-    title="[ Install ${collection_name} Themes ]"
+    title="[ Install Themes ]"
   else
     # Reinstall a theme
     for theme in "${onlinethemes[@]}"; do
@@ -449,10 +452,10 @@ function InstallMenu() {
         options+=($theme "Reinstall")
       fi
     done
-    title="[ Reinstall ${collection_name} Themes ]"
+    title="[ Reinstall Themes ]"
   fi
 
-  cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "${backtitle}" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
+  cmd=(dialog --help-button --help-label "Details" --ok-label "Go for it!" --cancel-label "Back" --backtitle "$backtitle" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
   choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
   retval=$?
@@ -528,7 +531,7 @@ function ChangeLogMenu() {
       options+=($theme "See Changelog")
     done
 
-    cmd=(dialog --cancel-label "Back" --backtitle "${backtitle}" --title "[ Themes Changelog ]" --menu "Select theme to update:" "15" "50" "15")
+    cmd=(dialog --cancel-label "Back" --backtitle "$backtitle" --title "[ Themes Changelog ]" --menu "Select theme to update:" "15" "50" "15")
     choices=$("${cmd[@]}" "${options[@]}" 2>&1 >/dev/tty1)
 
     retval=$?
@@ -545,7 +548,7 @@ function ChangeLogMenu() {
 
     SAVEIFS=$IFS
     IFS=$'\n'
-    dialog --clear --backtitle "${backtitle}" --msgbox "$theme changelog :${changelog[*]}" 0 0 2>&1 >/dev/tty1
+    dialog --clear --backtitle "$backtitle" --msgbox "$theme changelog :${changelog[*]}" 0 0 2>&1 >/dev/tty1
     IFS=$SAVEIFS
 
     AdvancedMenu
@@ -559,7 +562,7 @@ function SettingsMenu() {
   local choice
   local retval
 
-  cmd=(dialog --separate-output --backtitle "${backtitle}" --title " [ Startup Options ] " --checklist "Select loading options\n NB : ArkThemes initialisation will take longer espacially if check for themes updates is activated :" "15" "50" "15")
+  cmd=(dialog --separate-output --backtitle "$backtitle" --title " [ Startup Options ] " --checklist "Select loading options\n NB : ArkThemes initialisation will take longer espacially if check for themes updates is activated :" "15" "50" "15")
 
   options=(
         ArkThemes "Check for updates" $arkthemes_autocheckupdate
@@ -593,7 +596,7 @@ function AdvancedMenu() {
   local choice
   local retval
 
-  cmd=(dialog --no-cancel --backtitle "${backtitle}" --title " [ Advanced Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
+  cmd=(dialog --no-cancel --backtitle "$backtitle" --title " [ Advanced Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
   options=(
         A "Update ArkThemes"
@@ -613,7 +616,7 @@ function AdvancedMenu() {
           CheckArkThemesUpdates
         else
           if [[ $arkthemes_outdated -eq 0 ]]; then
-            dialog --clear --backtitle "ArkThemes" --msgbox "ArkThemes is up to date." 0 0 2>&1 >/dev/tty1
+            dialog --clear --backtitle "$backtitle" --msgbox "ArkThemes is up to date." 0 0 2>&1 >/dev/tty1
             AdvancedMenu
           else
             UpdateArkThemes
@@ -638,7 +641,7 @@ function MainMenu() {
 	local choice
   local retval
 
-  cmd=(dialog --no-cancel --backtitle "${backtitle}" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
+  cmd=(dialog --no-cancel --backtitle "$backtitle" --title " [ Main Menu ] " --menu "You can use UP/DOWN on the D-pad and A to select:" "15" "50" "15")
 
   options=(
         A "Install a theme"
