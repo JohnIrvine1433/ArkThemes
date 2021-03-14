@@ -28,7 +28,7 @@ fi
 #
 github_ark_owner="JohnIrvine1433" #Used for ArkThemes update function
 github_ark_repo="ArkThemes"       #Used for ArkThemes update function
-current_ark_version="1.0.0"
+current_ark_version="0.1.1"
 collections=("Jetup13" "EmuELEC")
 
 #
@@ -100,7 +100,6 @@ function InitLoader() {
   local cmd
   local retval
   local temparr
-  local github_user
 
   dialog --clear
   dialog --infobox "Initialization... Please wait !" 5 50
@@ -128,7 +127,7 @@ function InitLoader() {
     MainMenu
 
   else
-    cmd=$(dialog --backtitle "$backtitle" --yes-label "Try again" --no-label "Exit" --yesno "\nInternet connection required!" 0 0 2>&1 >/dev/tty1)
+    cmd=$(dialog --backtitle "$backtitle" --yes-label "Try again" --no-label "Exit" --yesno "Internet connection required!" 5 50 2>&1 >/dev/tty1)
 
     retval=$?
     case $retval in
@@ -146,8 +145,8 @@ function InstallTheme() {
   local theme=$1
   local latest
   local REP_URL
-  local ABS_PATH
-  local ABS_DIR
+  #local ABS_PATH
+  #local ABS_DIR
   local temp
   local THEME_CONTENT
   local cmd
@@ -160,8 +159,8 @@ function InstallTheme() {
 
   REP_URL="https://api.github.com/repos/${github_user}/${theme}/zipball"
 
-  ABS_PATH=$(readlink -f "$0")
-  ABS_DIR=$(dirname "$ABS_PATH")
+  #ABS_PATH=$(readlink -f "$0")
+  #ABS_DIR=$(dirname "$ABS_PATH")
 
   mkdir -p /dev/shm/theme_update_temp #create a temp folder in RAM
 
@@ -195,7 +194,7 @@ function InstallTheme() {
     LoadInstalledThemes                               #reload liste of installed themes (in case of install)
     outdatedthemes=("${outdatedthemes[@]/${theme}/}") #in case of update, remove theme from outdated themes list
 
-    dialog --clear --backtitle "$backtitle" --msgbox "Theme $theme updated successfully!" 0 0 2>&1 >/dev/tty1
+    dialog --clear --backtitle "$backtitle" --msgbox "Theme $theme updated successfully!" 5 50 2>&1 >/dev/tty1
 
     MainMenu
 
@@ -204,7 +203,7 @@ function InstallTheme() {
     #Deleting temporary files
     sudo rm -rf /dev/shm/theme_update_temp #remove the temp folder from RAM
 
-    cmd=$(dialog --yes-label "Try again" --no-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 0 0 2>&1 >/dev/tty1)
+    cmd=$(dialog --yes-label "Try again" --no-label "Exit" --yesno "Theme update have failed because the archive did not download correctly. Check your connection and try again." 20 50 2>&1 >/dev/tty1)
     retval=$?
     case $retval in
     0)
@@ -228,7 +227,7 @@ function RemoveTheme() {
 
   LoadInstalledThemes
 
-  dialog --clear --backtitle "$backtitle" --msgbox "Theme $theme successfully removed!" 0 0 2>&1 >/dev/tty1
+  dialog --clear --backtitle "$backtitle" --msgbox "Theme $theme successfully removed!" 10 50 2>&1 >/dev/tty1
 
   UninstallMenu
 }
@@ -256,7 +255,11 @@ function UninstallMenu() {
     for theme in "${themes2remove[@]}"; do
       options+=($theme "Uninstall")
     done
-    title="\Zb\Z1[ Caution - These themes cannot be reinstalled ]"
+    if [[ -z $options ]]; then
+      dialog --clear --backtitle "$backtitle" --msgbox "No unmanaged theme installed !" 5 50 2>&1 >/dev/tty1
+      UninstallMenu
+    fi
+    title="\Zb\Z1[ Caution - Themes not from current $github_user collection ]"
   fi
 
   cmd=(dialog --colors --backtitle "$backtitle" --title "$title" --menu "Select theme from the list:" "15" "50" "15")
@@ -287,7 +290,7 @@ function UpdateSubMenu {
   theme=${theme/HELP /}
   commitmsg=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}/commits" | sed '/\"message\":/!d;q' | sed -e 's/\"message\": \"//' | sed -e 's/\",//')
 
-  cmd=$(dialog --backtitle "$backtitle" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}, update content :\n${commitmsg}" 0 0 2>&1 >/dev/tty1)
+  cmd=$(dialog --backtitle "$backtitle" --yes-label "Update" --no-label "Back" --yesno "Theme : ${theme}\nUpdate content : ${commitmsg}" 15 50 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
@@ -313,12 +316,12 @@ function UpdateMenu() {
   fi
 
   if [[ -z "$outdatedthemes" ]]; then
-    dialog --backtitle "$backtitle" --yesno "No updates available... Check again for updates ?" 0 0 2>&1 >/dev/tty1
+    dialog --backtitle "$backtitle" --yesno "No updates available... Check again for updates ?" 1 50 2>&1 >/dev/tty1
     retval=$?
     case $retval in
     0)
       themes_updates_checked=0
-      CheckThemesUpdates
+      UpdateMenu
       ;;
     1)
       MainMenu
@@ -414,7 +417,7 @@ function InstallSubMenu {
   theme=${theme/HELP /}
   description=$(wget --no-check-certificate -qO - "https://api.github.com/repos/${github_user}/${theme}" | sed '/\"description\":/!d;q' | sed -e 's/\"description\": \"//' | sed -e 's/\",//')
 
-  cmd=$(dialog --backtitle "${backtitle}" --yes-label "Install" --no-label "Back" --yesno "${theme} description : ${description}" 0 0 2>&1 >/dev/tty1)
+  cmd=$(dialog --backtitle "${backtitle}" --yes-label "Install" --no-label "Back" --yesno "${theme} description :\n ${description}" 10 50 2>&1 >/dev/tty1)
 
   retval=$?
   case $retval in
@@ -504,16 +507,27 @@ function UpdateArkThemes() {
     #Overwritting existing files
     cp -rf $PAYLOAD ./
     sudo chmod 777 ./*.sh #make sure newly downloaded scripts have right permission
+    #Deleting temporary files...
+    sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
 
-    dialog --clear
-    dialog --infobox "ArkThemes successfully updated !\nPlease relaunch ArkThemes." 5 50
+    dialog --clear --backtitle "$backtitle" --msgbox "ArkThemes successfully updated !\nQuit and relaunch ArkThemes." 10 50 2>&1 >/dev/tty1
+
+    ExitApp
   else
-    dialog --clear
-    dialog --infobox "Theme update have failed because the archive did not download correctly. Check your connection and try again." 10 50
-  fi
+    #Deleting temporary files...
+    sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
 
-  #Deleting temporary files...
-  sudo rm -rf /dev/shm/payload_temp #remove the temp folder from RAM
+    cmd=$(dialog --yes-label "Try again" --no-label "Exit" --yesno "Update have failed because the archive did not download correctly. Check your connection and try again." 20 50 2>&1 >/dev/tty1)
+    retval=$?
+    case $retval in
+    0)
+      UpdateArkThemes
+      ;;
+    1)
+      ExitApp
+      ;;
+    esac
+  fi
 }
 
 function ChangeLogMenu() {
@@ -546,7 +560,7 @@ function ChangeLogMenu() {
 
     SAVEIFS=$IFS
     IFS=$'\n'
-    dialog --clear --backtitle "$backtitle" --msgbox "$theme changelog :${changelog[*]}" 0 0 2>&1 >/dev/tty1
+    dialog --clear --backtitle "$backtitle" --msgbox "$theme changelog :${changelog[*]}" 20 50 2>&1 >/dev/tty1
     IFS=$SAVEIFS
 
     AdvancedMenu
@@ -647,7 +661,7 @@ function AdvancedMenu() {
         CheckArkThemesUpdates
       else
         if [[ $arkthemes_outdated -eq 0 ]]; then
-          dialog --clear --backtitle "$backtitle" --msgbox "ArkThemes is up to date." 0 0 2>&1 >/dev/tty1
+          dialog --clear --backtitle "$backtitle" --msgbox "ArkThemes is up to date." 5 50 2>&1 >/dev/tty1
           AdvancedMenu
         else
           UpdateArkThemes
